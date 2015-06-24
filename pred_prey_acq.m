@@ -4,8 +4,6 @@ function fish_acq(vPath,skip_prey)
 
 
 
-
-
 %% Parameter values
 
 % Extension for image files
@@ -48,13 +46,13 @@ p.framerate = 1000;
 % end
 
 % Path to video
-vPath = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/practice video';
+vPath = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Video for Matt';
 
 % Path to data
 dPath = vPath;
 
 % Load filenames for frames
-a = dir([vPath filesep 'frames' filesep '*.' nameSuffix]);
+a = dir([vPath  filesep '*.' nameSuffix]);
 
 if isempty(a)
     error('No video frames found');
@@ -85,7 +83,7 @@ a2 = dir([vPath filesep 'roi.mat']);
 
 if isempty(a2)  
     % Read first frame
-    im = imread([vPath filesep 'frames' filesep a(1).name]);
+    im = imread([vPath  filesep a(1).name]);
     
     % Select dimensions of roi
     txt = 'Clockwise, starting with upper-left corner';
@@ -187,7 +185,7 @@ if isempty(a2)
              'CreateCancelBtn','setappdata(gcbf,''canceling'',1)');
     
     % Create sum image based on first frame
-    [imCurr,tmp] = imread([vPath filesep 'frames' filesep p.filename{1}]);
+    [imCurr,tmp] = imread([vPath  filesep p.filename{1}]);
     imSum = double(imCurr);
     clear imCurr tmp
       
@@ -195,7 +193,7 @@ if isempty(a2)
     for i = 1:length(frIdx)
         
         % Add current frame to sum image
-        [imCurr,tmp] = imread([vPath filesep 'frames' filesep p.filename{frIdx(i)}]);
+        [imCurr,tmp] = imread([vPath  filesep p.filename{frIdx(i)}]);
         imSum        = imSum + double(imCurr);
         clear tmp imCurr
         
@@ -250,7 +248,7 @@ if 0 % isempty(a2)
     p.tVal = graythresh(img)+0.1;
     
     % Store path info in p
-    p.path   = [vPath filesep 'frames'];
+    p.path   = [vPath ];
 
     % Run threshFinder to find threshold values for predator and prey
     % note: threshFinder saves p in seq_params.mat
@@ -332,7 +330,7 @@ if isempty(a3)
         %[x_roi,y_roi] = roiCoords(p);
         
         % Read full frame
-        im = imread([vPath filesep 'frames' filesep p.filename{i}]);
+        im = imread([vPath  filesep p.filename{i}]);
         
         % Grab frame, threshold image & choose roi
         img = grabFrame(vPath,p.filename{i},invert,p.roi_x,p.roi_y);
@@ -426,8 +424,6 @@ else
 end
 
 
-
-
 %% Analyze blobs
 
 % Define start and end frames
@@ -490,7 +486,7 @@ for i = first_frame:last_frame
     [yBran,xBran]  = find(B);
     [ySkel,xSkel]  = find(skel);
     
-    % FIND TAIL -----------------------------------------------------------
+    % FIND FIRST HEAD & TAIL POINTS ---------------------------------------
     
     % Identify tail on first run thru code (works best for straight body)
     if i==first_frame
@@ -534,64 +530,72 @@ for i = first_frame:last_frame
         xTail = xEnd(iR(iVal));
         yTail = yEnd(iR(iVal));
         
+        % Index for head point
+        iVal = find(bwVal==max(bwVal),1,'first');
+        
+        % Coordinates for head point
+        xHead = xEnd(iR(iVal));
+        yHead = yEnd(iR(iVal));
+        
         % Clear variables not needed below
         clear j iR iC theta r xROI yROI iVal bwVal cBW 
     end
-           
-    % Distance between branchpoints and tail point
-    xTail = repmat(xTail,length(xSkel),1);
-    yTail = repmat(yTail,length(ySkel),1);
-    dists = sqrt((xSkel-xTail).^2 + (ySkel-yTail).^2);
+          
+    % FIND NEW HEAD & TAIL POINTS -----------------------------------------
+    
+    % Distance between prior and tail point and endpoints
+    xTail = repmat(xTail,length(xEnd),1);
+    yTail = repmat(yTail,length(yEnd),1);
+    dists = sqrt((xEnd-xTail).^2 + (yEnd-yTail).^2);
     
     % Index for new tail point as min distance to endpoint
     iVal = find(dists==min(dists),1,'first');
-    xTail = xSkel(iVal);
-    yTail = ySkel(iVal);
+    xTail = xEnd(iVal);
+    yTail = yEnd(iVal);
     
+    % Distance between prior and tail point and endpoints
+    xHead = repmat(xHead,length(xEnd),1);
+    yHead = repmat(yHead,length(yEnd),1);
+    dists = sqrt((xEnd-xHead).^2 + (yEnd-yHead).^2);
+    
+    % Index for new tail point as min distance to endpoint
+    iVal = find(dists==min(dists),1,'first');
+    xHead = xEnd(iVal);
+    yHead = yEnd(iVal);
 
     % FIND MIDLINE POINTS -------------------------------------------------
  
     % Set last point (on repeat)
     %xLast = repmat(xTail,length(xSkel),1);
     %yLast = repmat(yTail,length(xSkel),1);
-    xLast = xTail;
-    yLast = yTail;
+    %xLast = xTail;
+    %yLast = yTail;
+    
+    % Prune branches from skeleton
+    skel = prune_branches(skel,xHead,yHead,xTail,yTail);
         
     % Remove branches from binary image
-    skel = remove_branches(skel,B,E,xLast,yLast);
+    %skel = remove_branches(skel,B,E,xHead,yHead,xTail,yTail);
+    
+    [sMid,xMid,yMid] = find_mid(skel,xHead,yHead,xTail,yTail);
+    
     
     % Find midline points
-    [yMid,xMid] = find(skel);
+    %[yMid,xMid] = find(skel);
    
      % Visualize frames
      if visSteps
         
         warning off
-        subplot(1,2,1)
+       % subplot(1,2,1)
         imshow(imBlob2)
-        title(['Frame ' num2str(i)])
-              
-        subplot(1,2,2)
-        imshow(~imBW)
         hold on
         plot(yPerim,xPerim,'r-')
-        plot(xMid,yMid,'w.')
-        plot(xTail,yTail,'go')
+        plot(xMid,yMid,'g+')
+        title(['Frame ' num2str(i)])
         hold off
-        
-%         subplot(2,2,3)
-%         imshow(imSkel)
-%         hold on       
-%         plot(xMid,yMid,'r-')
-%         hold off
-%         
-%         subplot(2,2,4)
-        %TODO: Use tail point from prior frame as starting point for
-        %current frame to define reference.  (Need to identify tail)
-        
-        
         warning on
-        pause(0.1)
+        pause(0.01)
      end
     
      clear imBlob2 imBW imBW2 LL props B L maxB idx dists xEnd yEnd
@@ -640,6 +644,150 @@ return
 % % Remove the next point from the skeleton
 % skel(yLast,xLast) = false;
 
+function  [s,xSm,ySm] = find_mid(skel,xHead,yHead,xTail,yTail)
+% Finds a smooth midline from skeletonized image
+
+% Number of pixels between midline points
+mid_space = 5;
+
+tol = 10;
+
+% Store iniital image
+skel_start = skel;
+
+% Pad image
+skel = pad_im(skel);
+
+
+
+% Pad coordinates
+xHead = xHead + 1;
+yHead = yHead + 1;
+xTail = xTail + 1;
+yTail = yTail + 1;
+
+% Define center cross im, peripheral im, diagonal im
+im_cntr = [0 1 0;1 0 1; 0 1 0];
+im_diag = [1 0 1; 0 0 0;1 0 1];
+
+% Arc length
+s = 0;
+
+% Index
+i = 2;
+
+% Start at head
+xMid = xHead;
+yMid = yHead;
+
+% Loop until done
+while sum(skel(:))>mid_space-1
+    
+    % Remaining skeleton points
+    [ySkel,xSkel]  = find(skel);
+    
+    % Distance between last midpoint and skel points
+    xTmp = repmat(xMid(end),length(xSkel),1);
+    yTmp = repmat(yMid(end),length(ySkel),1);
+    dists = sqrt((xTmp-xSkel).^2 + (yTmp-ySkel).^2);
+    
+    dist_diff = abs(dists-mid_space);
+     
+    % Index for new tail point as min distance to endpoint
+    iVal = find(dist_diff==min(dist_diff),1,'first');
+    xMid(i,1) = xSkel(iVal);
+    yMid(i,1) = ySkel(iVal);
+    
+    % Black out interval points
+    idx = dists<=mid_space;
+    skel(ySkel(idx),xSkel(idx)) = false;
+
+    
+    
+    if 0
+        imshow(skel)
+        hold on
+        plot(xMid(end),yMid(end),'r+')
+        hold off
+        pause(0.1);
+    end
+    
+    % Check if at end
+    if xMid(i)==xTail && yMid(i)==yTail
+        break
+    end
+    
+    % Iterate index
+    i = i + 1;
+end
+
+% Remove effects of padding
+xMid = xMid - 1;
+yMid = yMid - 1;
+
+% Position along curve
+s = [0; cumsum(sqrt(diff(xMid).^2+diff(yMid).^2))];
+
+% Spline smoothed coordinates
+[xSp,xSm] = spaps(s,xMid,tol);
+[ySp,ySm] = spaps(s,yMid,tol);
+
+% Body positions that define margins of cranium and tail
+pos_cran = 1/3;
+pos_tail = 2/3;
+
+% Indices for head and tail points
+iHead = (s./max(s))<pos_cran;
+iTail = (s./max(s))>pos_tail;
+
+% % Linear fit to head and tail points
+% cH = polyfit(xMid(iHead),yMid(iHead),1);
+% cT = polyfit(xMid(iTail),yMid(iTail),1);
+% %cH = polyfit(s(iHead),yMid(iHead),1);
+% %cT = polyfit(s(iTail),yMid(iTail),1);
+% 
+% 
+% vect1 = [1 cH(1)]; % create a vector based on the line equation
+% vect2 = [1 cT(1)];
+% dp = dot(vect1, vect2);
+% 
+% % compute vector lengths
+% length1 = sqrt(sum(vect1.^2));
+% length2 = sqrt(sum(vect2.^2));
+% 
+% % obtain the larger angle of intersection in degrees
+% angl = acos(dp/(length1*length2));
+% 
+% % Intersection between two lines
+% xInt = (cH(2)-cT(2))/(cT(1)-cH(1));
+% yInt = polyval(cT,xInt);
+% 
+% 
+% xPts = 1:size(skel,2);
+% 
+% if 1 
+%     warning off
+%     imshow(skel_start)
+%     hold on
+%     plot(xSm,ySm,'r+',xPts,polyval(cH,xPts),'g-',xPts,polyval(cT,xPts),'y-',...
+%         xInt,yInt,'go')
+%     title(['Angle = ' num2str(angl/pi*180) ' deg'])
+%     hold off
+%     warning on
+%     pause(0.1)
+% end
+
+%[xSp,xSm] = spaps(s,xMid,tol);
+%[ySp,ySm] = spaps(s,yMid,tol);
+
+%xMid = xSm
+% Visual check
+if 0
+    warning off
+    imshow(skel_start);hold on
+    plot(xSm,ySm,'r-');hold off
+    warning on
+end
 
 
 function [py_x,py_y,py_a,x_roipy,y_roipy,imBW] = ...
@@ -722,10 +870,89 @@ end
 
 
 
+function skel = prune_branches(skel,xHead,yHead,xTail,yTail)
+% Gets rid of spurs from skeleton
+
+% Pad image
+skel = pad_im(skel);
+
+% Make clubs at the head and tail
+ptsX = [-1 0 1 1 1 0 -1 -1];
+ptsY = [-1 -1 -1 0 1 1 1 0];
+
+% Get image of pixels around head and tail
+imTail = skel(ptsY+yTail+1,ptsX+xTail+1);
+imHead = skel(ptsY+yHead+1,ptsX+xHead+1);
+
+% Create clubs to prevent erosion
+skel(ptsY+yTail+1,ptsX+xTail+1) = true;
+skel(ptsY+yHead+1,ptsX+xHead+1) = true;
+
+% Initialize constants
+chng = inf;
+nLast = inf;
+
+% Loop until no change in number of pixels
+while chng>0
+    % Remove spurs
+    skel = bwmorph(skel,'spur');
+    
+    % Change in num of pixels
+    chng = abs(sum(skel(:))-nLast);
+    
+    % Num of pixels in current frame
+    nLast = sum(skel(:));
+end
+
+% Remove clubs at the head and tail
+skel(ptsY+yTail+1,ptsX+xTail+1) = imTail;
+skel(ptsY+yHead+1,ptsX+xHead+1) = imHead;
+
+% Remove padding
+skel = unpad_im(skel);
+
+
+
+
+
+function im = pad_im(im)
+% Pad images with single border of black pixels
+
+% Top row
+im = [false(1,size(im,2)); im];
+
+% Bottom row
+im = [im; false(1,size(im,2))];
+
+% Left column
+im = [false(size(im,1),1) im];
+
+% Right column
+im = [im false(size(im,1),1)];
+
+
+function im = unpad_im(im)
+% UnPad images with single border of black pixels
+
+% Top row
+im = im(2:end,:);
+
+% Bottom row
+im = im(1:end-1,:);
+
+% Left column
+im = im(:,2:end);
+
+% Right column
+im = im(:,1:end-1);   
+    
+
+
+
 function img = grabFrame(dirPath,filename,invert,x_roi,y_roi)
 
 % Load image
-img = imread([dirPath filesep 'frames' filesep filename]);
+img = imread([dirPath filesep filename]);
 
 % Deinterlace image
 %img = deinterlace(img);
