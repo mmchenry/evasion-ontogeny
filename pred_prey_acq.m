@@ -1,4 +1,4 @@
-function fish_acq(vPath,skip_prey)
+function pred_prey_acq(vPath,skip_prey)
 
 % Acquire kinematics of predator and prey fish
 
