@@ -1,4 +1,4 @@
-function cal = runCalibration(calDir,sqr_size,num_digit)
+function cal = runCalibration(calVid,calDir,sqr_size,num_digit)
 % Conducts calibration for 3D kinematic experiments that use GoPro cameras
 % Requires Matlab 2014b (or later), Computer Vision Toolbox and Image
 % Processing Toolbox.
@@ -19,7 +19,7 @@ write_results = 1;
 num_fr0 = 30;
 
 % Get video information
-M = videoInfo([calDir filesep 'Checkerboard video'],num_digit);
+M = videoInfo([calVid filesep 'Checkerboard video'],num_digit);
     
 
 %% Creating calibration images
@@ -109,7 +109,8 @@ if create_im
                 fr_str(end-5:end) '.tif'];
             
             % Write image files
-            imwrite(im,im_path,'TIFF');
+            %imwrite(im,im_path,'TIFF');
+            copyfile(M.path{iFrame},im_path)
             
             % Save paths
             %im_file.path{k} = im_path;
@@ -181,7 +182,7 @@ if isempty(dir([calDir filesep 'frames_roi']))
         
         % Show frame
         warning off
-        imshow(im)
+        imshow(imadjust(im))
         warning on
         
         % Interactively find ROI
