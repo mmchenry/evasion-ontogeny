@@ -1,4 +1,4 @@
-function playData(paths,p,batchName,cal,roi) 
+function playData(paths,batchName,seqName,roi,cal) 
 % Animates the results of the acqMaster data analysis
 
 %% Parameters
@@ -11,12 +11,65 @@ playRate = 30;
 
 % Play direction 
 playDir = 1;
-   
+
+
+%% Path definitions
+
+if nargin < 1
+    % Matt's computer
+    if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
+        % Directory root
+        %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
+        root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+        vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    else
+        error('This computer is not recognized')
+    end
+    
+    % To raw video files
+    paths.rawvid = [vid_root filesep 'Raw video'];
+    
+    % To calibration video files
+    paths.calvid = [vid_root filesep 'Calibration video'];
+    
+    % To data files
+    paths.data = [root filesep 'Data'];
+    
+    % To video thumbnails (for post-processing)
+    paths.thumb  = [root filesep 'Thumbnail video'];
+    
+    % To calibration files
+    paths.cal = [root filesep 'Calibrations'];
+    
+    % Log files
+    paths.log = [root filesep 'logFiles'];
+end
+
+
+%% Set defaults
+
+if nargin < 3
+    batchName   = '2015-11-06';
+    seqName     = 'S02';
+end
+
+if nargin < 4
+    % Load 'roi'
+    load([paths.cal filesep batchName filesep 'roi_data.mat'])
+end
+
+if nargin < 5
+    cal = [];
+end
+
 
 %% Load data
 
+% Load parameters 'p'
+load([paths.data filesep batchName 'parameters.mat'])
+
 % List of sequences
-seqList = dir([paths.data filesep batchName filesep 'C1S*']);
+seqList = dir([paths.data filesep batchName filesep 'S*']);
 
 % Check directory
 if isempty(seqList)
@@ -32,14 +85,15 @@ if length(seqList)>1
     
     % Prompt for sequence selection
     [currSeq,ok] = listdlg('PromptString','Choose sequence:',...
-        'ListString',list_txt,'SelectionMode','single');
+                           'ListString',list_txt,...
+                           'SelectionMode','single');
     
     % Quit if canceled
     if ok==0
         return
     end
     
-    % Otherwise, skip the interaction
+% Otherwise, skip the interaction
 else
     currSeq = 1;
 end
@@ -159,7 +213,8 @@ while playOn
                 
             else
                 % Advance by necessary number of frames
-                cFrame = cFrame + playDir*round(playRate * tRender);
+                cFrame = min([length(B) ...
+                    (cFrame + playDir*round(playRate * tRender))];
             end        
         end
         
@@ -260,7 +315,9 @@ else
 end
 
 % Undistort
-im = undistortImage(imadjust(im), cal.cameraParams,'OutputView','full');
+if ~isempty(cal)
+    im = undistortImage(imadjust(im), cal.cameraParams,'OutputView','full');
+end
 
 % Blob region of interest
 if ~isnan(blob.xMid(1))

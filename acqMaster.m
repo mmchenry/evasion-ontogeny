@@ -1,20 +1,25 @@
-function acqMaster(runBatch,batchNum)
+function acqMaster(batchNum,seqName)
 % Manages the workflow for the acquisition of kinematics
+
+if nargin < 2
+    batchName   = '2015-11-06';
+    seqName     = 'S02';
+end
 
 
 %% Parameter values
 
-% Wait for the stimulusPC to be initiated
-waitForStim = 0;
+% Include calibration
+includeCalibration = 0;
 
 % Extension for image files
-p.nameSuffix = 'tif';
+p.nameSuffix = 'jpg';
 
 % Number of digits in batch name
 p.num_digit_batch = 4;
 
 % Number of digits for frame number in file name
-p.num_digit_frame = 6;
+p.num_digit_frame = 4;
 
 % Number of frames to visualize at start of acquisition
 p.numVis = 50;
@@ -26,7 +31,7 @@ p.max_frames = 100;
 p.framerate = 1000;
 
 % Frames to skip initially in analysis
-p.skipFrame_start = 5;
+%p.skipFrame_start = 5;
 
 % Size of calibration squares
 p.sqr_size = 0.8e-2;
@@ -56,18 +61,8 @@ loopDur = 2;
 if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
     % Directory root
     %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-    root = '/Users/mmchenry/Dropbox/Projects/Looming Project/';
-    vid_root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-    
-% Photron (i.e. Maingear) computer
-elseif ~isempty(dir('C:\Users\experimentalist'))
-    root = 'C:\Users\experimentalist\Dropbox\Looming Project';
-    vid_root = 'C:\Users\experimentalist\Desktop\';
-    
-% Amberle's computer
-elseif ispc && ~isempty(dir(['C:\Users\Amberle_2\Documents']))
-    root = 'D:\Amberle\Looming stimulus experiments';
-    vid_root = root;
+    root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
     
 else
     error('This computer is not recognized')
@@ -92,117 +87,10 @@ paths.cal = [root filesep 'Calibrations'];
 paths.log = [root filesep 'logFiles']; 
 
 
-%% Query about mode
-
-if nargin<2
-    % Query
-    ButtonName1 = questdlg('Run experiments or analyze previous run?', ...
-        'Task?', 'Experiments', 'Analysis', 'Experiments');
-    
-    % Check for just analysis
-    if strcmp(ButtonName1,'Analysis')      
-        % Set to false
-        runBatch = 0;     
-        
-    % If running experiments
-    elseif strcmp(ButtonName1,'Experiments')
-        % Set to true
-        runBatch = 1;
-        
-    else
-        return
-    end
-    
-    % Clear variables
-    clear ButtonName2 ButtonName1
-    
-    % Get listing of batches of data
-    batchList = dir([paths.rawvid filesep 'B*']);
-    
-    % If there are batches . . .
-    if ~isempty(batchList)
-        % Loop thru batches
-        for i = 1:length(batchList)
-            % Get batch number from directory name
-            batchNums(i,1) = str2num(batchList(i).name(end-p.num_digit_batch+1:end));
-            
-            % Store in batchList
-            %batchList(i).batchNum = batchNums(i,1);
-        end
-        
-        % Current batch is the max number
-        curr_batch = max(batchNums);
-        
-        % If no batches . . .
-    else 
-        if runBatch
-            warning(['Creating new batch b/c no batch directories in: ' paths.data]);
-            batchNum = 1;
-        else
-            error(['No batches to analyze in: ' paths.rawvid]);
-        end
-    end
-    
-    % Batch to analyze   
-    if runBatch
-        % Set up inputdlg
-        prompt={'New batch number:'};
-        name='Batch setup';
-        defaultanswer={num2str(curr_batch+1)};
-        
-    else       
-        % Set up inputdlg
-        prompt={'Batch to analyze:'};
-        name='Batch analysis';
-        defaultanswer={num2str(curr_batch)};      
-    end
-    
-    % Ask about batch
-    answer=inputdlg(prompt,name,1,defaultanswer);
-    
-    % Check answer
-    if isempty(answer)
-        return
-    end
-    
-    % Get current batch
-    batchNum = str2num(answer{1});
-    
-    % Check requested batch number against existing
-    if runBatch && max(batchNum==batchNums)
-        warning(['Batch ' num2str(batchNum) ' already exists.','']);
-    end
-    
-    clear curr_batch answer batchList i prompt name numLines defaultanswer batchNums
-
-    if runBatch
-        % Make data directory
-        mkdir([paths.data filesep batchName])
-        
-        % Make thumbnail directory
-        mkdir([paths.thumb filesep batchName])
-        
-        % Make video directory
-        mkdir([paths.rawvid filesep batchName])
-    end
-     
-end %nargin<4
-
-% Define batch directory name
-batchName = ['0000000000' num2str(batchNum)];
-batchName = ['B' batchName((end-p.num_digit_batch+1):end)];
-
-clear batchNum
-
-% Make log directory, if necessary
-if isempty(dir([paths.log filesep batchName]))
-    mkdir([paths.log filesep batchName]);
-end
-
-
 %% Run (or load) calibration
 
-if isempty(dir([paths.cal filesep batchName filesep 'calibration data.mat']))
+if includeCalibration && ...
+   isempty(dir([paths.cal filesep batchName filesep 'calibration data.mat']))
     
     % Update status
     update_status(paths.log,batchName,'running calibration','calibrating')
@@ -297,10 +185,14 @@ if isempty(dir([paths.cal filesep batchName filesep 'calibration data.mat']))
     
     % Update status
     update_status(paths.log,batchName,'On standby','standby')
-else
+
+elseif includeCalibration
     
     % Load 'cal' structure of calibration data
     load([paths.cal filesep batchName filesep 'calibration data.mat'])
+    
+else
+    disp(' ');disp('    Running analysis without a calibration . . .')
     
 end
 
@@ -308,20 +200,36 @@ end
 %% Choose (or load) ROI
 
 if isempty(dir([paths.cal filesep batchName filesep 'roi_data.mat']))
-
-    % Get video information
-
-    M = videoInfo([paths.calvid filesep batchName filesep 'Checkerboard video'] ...
-        ,p.num_digit_frame);
     
-    % Create figure
-    f = figure;
+    %TODO: Modify this code for Alberto's proejct, once we start running
+    %      calibrations
     
-    % Read frame
-    im = imread(M.path{1});
-
-    % Undistort
-    im = undistortImage(imadjust(im), cal.cameraParams,'OutputView','full');
+    if includeCalibration
+        % Get video information        
+        M = videoInfo([paths.calvid filesep batchName filesep 'Checkerboard video'] ...
+            ,p.num_digit_frame);
+        
+        % Create figure
+        f = figure;
+        
+        % Read frame
+        im = imread(M.path{1});
+          
+        % Undistort
+        im = undistortImage(imadjust(im), cal.cameraParams,'OutputView','full');
+        
+    else
+        % Get listing of video frames
+        aVid = dir([paths.rawvid filesep batchName filesep seqName ...
+                    filesep 'exp*' p.nameSuffix]);
+        
+        % Read first frame
+        im = imread([paths.rawvid filesep batchName filesep seqName ...
+                    filesep aVid(1).name]);
+        
+        % Adjust contrast
+        %im = imadjust(im);
+    end
     
     % Show frame
     warning off
@@ -345,6 +253,11 @@ if isempty(dir([paths.cal filesep batchName filesep 'roi_data.mat']))
     pause(1)
     hold off
     
+    % Make data directory
+    if isempty(dir([paths.cal filesep batchName]))
+        mkdir([paths.cal filesep batchName])
+    end
+    
     % Save ROI data
     save([paths.cal filesep batchName filesep 'roi_data.mat'],'roi')
     
@@ -359,39 +272,13 @@ end
 
 
 %% Run analysis
-
-if runBatch && waitForStim
-    
-    % Update status
-    update_status(paths.log,batchName,'on standby','standby')
-    
-    % Read log
-    lg = read_log(paths.log,batchName);
-    
-    % If StimPC is not ready 
-    if ~strcmp(lg.status,'standby')
-        % Loop until on standby
-        while ~strcmp(lg.status,'standby')
-            lg = read_log(paths.log,batchName);
-            disp('    Waiting for StimPC . . .')
-            pause(10);
-        end
-    end
-end
-
-% Set current sequence
-if runBatch   
-    currSeq = 0;
-else
-    currSeq = 1;
-end
     
 % Initial list of sequences
-seqList = dir([paths.rawvid filesep batchName filesep 'C1S*']);
+seqList = dir([paths.rawvid filesep batchName filesep 'S*']);
     
 % Check list
-if ~runBatch && isempty(seqList)
-    warning('No sequences in the batch directory')
+if isempty(seqList)
+    error('No sequences in the date directory')
 end
     
 % Set logical
@@ -403,23 +290,10 @@ motion = [];
 % Initialize previous
 expName_prev = [];
     
-while continue_analysis
-    
-    % Wait for new sequence, if running a batch
-    if runBatch        
-        % Wait for new video
-        currSeq = waitGame(paths,batchName,currSeq,p,waitDur,loopDur,expName_prev,motion);
-        
-        % Update status
-        update_status(paths.log,batchName,'running analysis','analyzing',...
-            expName_prev,motion)
-        
-        % Update list of sequences
-        seqList = dir([paths.rawvid filesep batchName filesep 'C1S*']);
-    end
-    
+for i = 1:length(seqList)
+
     % Name of current experiment
-    expName = seqList(currSeq).name;
+    expName = seqList(i).name;
     
     % Directory for current video
     vPath = [paths.rawvid filesep batchName filesep expName];
@@ -444,217 +318,25 @@ while continue_analysis
     end
     
     % If this is not the first recording and there is motion in prior movie
-    if ~isempty(motion) && (motion==1)
-        
+    if i>1      
         % Copy meanImage from prior
         copyfile([paths.data filesep batchName filesep ...
                   seqList(currSeq-1).name filesep 'meanImage.tif'],...
-                 [dPath filesep 'meanImage.tif']);
-        
+                 [dPath filesep 'meanImage.tif']);      
     end
     
     % Update status at command line
     disp(' '); disp(' ')
-    disp(['---------- Analyzing ' expName ', ' num2str(currSeq) ' of ' ...
-        num2str(length(seqList)) ' in ' batchName ' ----------'])
+    disp(['---------- Analyzing ' expName ' in ' batchName ' ----------'])
     
-    % Course pass on analysis
-    motion = anaFrames('parallel',dPath,vPath,tPath,cPath,p,roi,...
-                       p.skipFrame_start);
-    
-   %TODO: Figure out why motion is misdiagnosed
+    % Analyze for midlines
+    motion = anaFrames('sequential',dPath,vPath,tPath,cPath,p,roi,includeCalibration);
                    
-    % Update status
-    update_status(paths.log,batchName,...
-            ['finished seq ' num2str(currSeq)],'analyzing',expName,motion);               
-    
-    % If fish moved . . .
-    if motion
-        % Update status
-        %update_status(paths.log,batchName,'fish responded, starting FS analysis');
-        
-        % Analyze sequence data
-        bStats = anaSeq('prelim',dPath,tPath,cPath,p);
-        
-        % Analyze every frame of the fast start
-        if ~isnan(bStats.tFS(1))
-            anaFrames('sequential',dPath,vPath,tPath,cPath,p,roi,0,...
-                bStats.frFS(1),bStats.frFS(2));
-        end
-        
-    % If no motion . . .
-    else
-        % Update status
-        %update_status(paths.log,batchName,'fish motionless, rerunning expt');
-        
-        %update_status(paths.log,batchName,'fish motionless',...
-        %    'running analysis',0)
-    end
-    
-    % Update status
-    update_status(paths.log,batchName,'on standby',...
-            'standby',expName,motion);
-        
-    expName_prev = expName;
-    
-    % If all sequences are analyzed
-    if ~runBatch && (currSeq==length(seqList))
-        
-        % Update status
-        disp(['Completed all ' num2str(currSeq) ' sequences in ' batchName])
-        
-        % End execution
-        continue_analysis = false;
-        
-    % Otherwise, continue analysis
-    elseif ~runBatch
-        currSeq = currSeq + 1;
-        
-    end
+    % Analyze sequence data
+    bStats = anaSeq('prelim',dPath,tPath,cPath,p);
 end
 
-
-function currSeq = waitGame(paths,batchName,currSeq,p,waitDur,loopDur,expName,motion)
-
-% Update status
-update_status(paths.log,batchName,'waiting for new video','standby',expName,motion)
-
-% Set logical for waiting loop
-continue_waiting = true;
-
-% Waiting loop
-while continue_waiting
-    
-    % Get latest log file
-    lg = read_log(paths.log,batchName);
-    
-    %if strcmp(lg.PC,'stimPC') && ~isempty(lg.last_seq)
-        
-    % Survey list of sequences recorded
-    seqList = dir([paths.rawvid filesep batchName filesep 'C1S*']);
-    
-    % If there is a new sequence . . .
-    if length(seqList)>currSeq
-        
-        % Set new current sequence
-        currSeq = currSeq + 1;
-        
-        % Loop to make sure files aren't being written
-        while true
-            % List files
-            fileList1 = dir([paths.rawvid filesep batchName filesep ...
-                seqList(currSeq).name filesep '*.' p.nameSuffix]);
-            
-            % Wait before checking again
-            pause(10)
-            
-            % List files
-            fileList2 = dir([paths.rawvid filesep batchName filesep ...
-                seqList(currSeq).name filesep '*.' p.nameSuffix]);
-            
-            % Break, if no new files
-            if length(fileList1)==length(fileList2)
-                break
-            end
-        end
-        
-        % Exit wait loop
-        continue_waiting = false;
-        
-    % Otherwise (no new sequence) . . .
-    else
-        
-%         % Initialize wait bar
-%         hW = waitbar(0,'1','Name','Analysis paused',...
-%             'CreateCancelBtn',...
-%             'setappdata(gcbf,''canceling'',1)');
-%         setappdata(hW,'canceling',0)
-        
-        disp('    Waiting for new video . . .')
-        
-        % Wait loop
-        for i = 1:ceil(waitDur*60/loopDur)
-            
-%             % Check for Cancel button press
-%             if getappdata(hW,'canceling')
-%                 
-%                 % Kill the waitbar
-%                 close(hW,'force')
-%                 
-%                 % Stop all code
-%                 return
-%                 
-%                 % Otherwise, update waitbar status
-%             else
-%                 waitbar(i/ceil(waitDur*60/loopDur),hW,...
-%                     ['Waiting: ' sprintf('%6.1f',i*loopDur/60) ' of ' ...
-%                     num2str(waitDur) ' min for seq ' num2str(currSeq)])
-%             end
-            
-            % Pause to update status
-            pause(loopDur)
-        end
-        
-        % Kill waitbar for next pass thru loop
-        %close(hW,'force')
-    end
-end
-
-
-function update_status(log_path,batchName,event_txt,status_txt,...
-                       lastseq,motion)
-% Save a log file to update status 
-
-% Formulate date and time strings
-date_string = strcat(datestr(clock,'dd-mmm-yyyy-HH'),'_',...
-                     datestr(clock, 'MM'),'_',datestr(clock,'ss'),'_',...
-                     datestr(clock,'FFF'));
-time_str = strcat([datestr(clock,'HH'),':',datestr(clock, 'MM'),'.',...
-                   datestr(clock,'ss'),'.',datestr(clock,'FFF') ]);
-
-% Store in log structure
-lg.PC      = 'PhotronPC';
-lg.status  = status_txt;
-lg.msg     = strcat([time_str '  PhotronPC: ' event_txt]);
-
-% Log motion
-if nargin<5
-    lg.lastseq = [];
-else
-    % Last sequence analyzed
-    
-    lg.lastseq = lastseq;
-end
-
-if nargin<6
-    lg.motion = [];
-else
-    lg.motion = motion;
-end
-
-% Save
-save([log_path filesep batchName filesep 'L' date_string '_PhotronPC'],'lg')
-
-
-function log_out = read_log(log_path,batchName)
-
-% Get log files
-a = dir([log_path filesep batchName filesep 'L*']);
-
-% Set default as 'standby'
-log_out.status = [];
-
-% Loop trhu log files
-if ~isempty(a)
-    for i = 1:length(a)
-        % Load log structure
-        load([log_path filesep batchName filesep a(i).name])
-        
-        if strcmp(lg.PC,'StimPC')
-            log_out = lg;
-        end       
-    end
-end
-
+% Save parameters ('p')
+save([paths.data filesep batchName 'parameters'],'p')
 
 

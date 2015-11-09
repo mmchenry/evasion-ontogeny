@@ -1,5 +1,5 @@
 function motion = anaFrames(action,dPath,vPath,tPath,cPath,p,roi,...
-                            skipFrame,startFrame,endFrame)
+                            includeCalibration,skipFrame,startFrame,endFrame)
 % Steps thru frames, creates a thumbnail image and then extracts the
 % midline and eye positions
 
@@ -49,17 +49,26 @@ else
 end
 
 % Set default start and end frames
-if nargin < 10
+if nargin < 11
     endFrame = length(B);
-    if nargin < 9
+    if nargin < 10
         startFrame = 1;
     end
 end
 
-% Load calibration data ('cal')
-tmp = load([cPath filesep 'calibration data.mat']);
-cal = tmp.cal;
-clear tmp
+% Set default skipFrame
+if nargin < 9
+    skipFrame = 0;
+end
+
+if includeCalibration
+    % Load calibration data ('cal')
+    tmp = load([cPath filesep 'calibration data.mat']);
+    cal = tmp.cal;
+    clear tmp
+else
+    cal = [];
+end
 
 % Make list for analysis
 frames = startFrame:(1+skipFrame):endFrame;
@@ -109,8 +118,8 @@ if strcmp(action,'parallel')
     end
 
     % Loop thru frames in parallel
-    %parfor i =  1:length(frames); 
-    for i =  1:length(frames); 
+    parfor i =  1:length(frames); 
+    %for i =  1:length(frames); 
         
         % Current frame
         cFrame = frames(i);
@@ -224,8 +233,10 @@ end
 [im,cmap] = readFrame(vPath,B,cFrame);
 [im,cmap] = imread([vPath filesep B(cFrame).filename]);
 
-% Apply calibration to undistort image
-im = undistortImage(im, cal.cameraParams,'OutputView','full');
+if ~isempty(cal)    
+    % Apply calibration to undistort image
+    im = undistortImage(im, cal.cameraParams,'OutputView','full');
+end
 
 % Find blobs that define the fish in frame
 blob = findBlobs(im,imMean,roi);

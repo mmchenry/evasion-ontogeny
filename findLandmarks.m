@@ -23,7 +23,7 @@ statsLarge = regionprops(blob.BW,'Area');
 stats = regionprops(blob.BWsmall,'Centroid','Area');
 
 % Circle radius (in pix), scaled to blob area
-radius = round(sqrt(statsLarge(1).Area)/5);
+radius0 = round(sqrt(statsLarge(1).Area)/5);
 
 %TODO: Use pBlob to use previous frame to find head
 
@@ -70,6 +70,8 @@ imSketch = blob.BW;
 % Boolean that switches the focus from the large to small blob
 gosmall = 0;
 
+radius = radius0;
+
 % Loop that moves anteriorly from the tail, finding midline points
 while true
    
@@ -115,10 +117,13 @@ while true
         for j = 1:length(stats)
             if stats(j).MajorAxisLength>maxLen(2)
                 maxLen = [j stats(j).MajorAxisLength];
+                
+                radius = max([stats(j).MajorAxisLength/2 radius0]);
             end
         end
     else
         maxLen = 1;
+        radius = max([stats.MajorAxisLength/2 radius0]);
     end
     
     % Store coodinates of center point

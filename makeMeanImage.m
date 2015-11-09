@@ -92,9 +92,11 @@ if isempty(a2)
         imMean = uint16(round(imSum./length(frIdx)));
     end
     
-    % Apply calibration to undistort images
-    imMean = undistortImage(imMean, cal.cameraParams,'OutputView','full');
-    imMin  = undistortImage(imMin, cal.cameraParams,'OutputView','full');
+    if ~isempty(cal)
+        % Apply calibration to undistort images
+        imMean = undistortImage(imMean, cal.cameraParams,'OutputView','full');
+        imMin  = undistortImage(imMin, cal.cameraParams,'OutputView','full');
+    end
     
     % Write mean image to movie dir
     imwrite(imMean,[dPath filesep 'meanImage.tif'],'tif','Compression','none');

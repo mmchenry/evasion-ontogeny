@@ -8,7 +8,7 @@ function bStats = anaSeq(action,dPath,tPath,cPath,p)
 load([dPath filesep 'blob data.mat']);
 
 % Load calibration data ('cal')
-load([cPath filesep 'calibration data.mat'])
+%load([cPath filesep 'calibration data.mat'])
 
 % Load filenames of frames
 aT = dir([tPath  filesep '*.mat']);
