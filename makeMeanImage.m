@@ -6,23 +6,26 @@ function [imMin,imMean] = makeMeanImage(dPath,vPath,cal,B)
 % Max number of frames for creating the mean image
 maxFrames = 1000;
 
+% total number of frames in 'B'
+frTot = length(B);
+
 
 %% Create or load mean image
 
 % Look for mean image
 a2 = dir([dPath filesep 'meanImage.tif']);
 
-% Calculate mean image does not exist
+% Calculate mean image if it does not exist
 if isempty(a2)
     
     % Define list of frame numbers, depending on max number of frames
     % requested
-    if length(B) > maxFrames
-        dframe = floor(length(B)/maxFrames);
-        frIdx = 1:dframe:length(B);
+    if frTot > maxFrames
+        dframe = floor(frTot/maxFrames);
+        frIdx = 1:dframe:frTot;
         clear dframe
     else
-        frIdx = 1:length(B);
+        frIdx = 1:frTot;
     end
     
     % Create waitbar

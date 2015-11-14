@@ -23,7 +23,7 @@ end
 a2 = dir([dPath filesep 'blob data.mat']);
 
 % If data exist . . .
-if ~isempty(dir([dPath filesep 'blob data.mat']))
+if ~isempty(a2)
     
     % Load data 'B'
     load([dPath filesep 'blob data.mat']);
@@ -31,8 +31,15 @@ if ~isempty(dir([dPath filesep 'blob data.mat']))
 % Otherwise . . .
 else
   
+    % find total number of video frames
+    frTot = length(a);
+    
+    % initialize data structure 'B' with fields 'fr_num' and 'filename'
+    B(frTot).fr_num = frTot;
+    B(frTot).filename = [];
+    
     % Loop thru video frames
-    for i = 1:length(a)
+    for i = 1:frTot
         
         % Read frame number
         frNum = str2num(a(i).name(end-p.num_digit_frame-length(p.nameSuffix):...
@@ -44,7 +51,7 @@ else
             
     end
     
-    % Save data 'B'
+    % Save data 'B' to file 'blob data.mat'
     save([dPath filesep 'blob data.mat'],'B')
 end
 
@@ -70,7 +77,7 @@ else
     cal = [];
 end
 
-% Make list for analysis
+% Make frame list for analysis
 frames = startFrame:(1+skipFrame):endFrame;
 
 

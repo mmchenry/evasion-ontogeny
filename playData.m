@@ -16,12 +16,24 @@ playDir = 1;
 %% Path definitions
 
 if nargin < 1
-    % Matt's computer
-    if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
+    
+%     % Matt's computer
+%     if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
+%         % Directory root
+%         %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
+%         root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+%         vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+%     else
+%         error('This computer is not recognized')
+%     end
+    
+    % Alberto's computer
+    path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+    
+    if ~isempty(dir([filesep path]))
         % Directory root
-        %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-        root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-        vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+        root     = '/Users/alberto/Dropbox/Alberto/predator';
+        vid_root = '/Users/alberto/Dropbox/Alberto/predator';
     else
         error('This computer is not recognized')
     end
@@ -50,12 +62,12 @@ end
 
 if nargin < 3
     batchName   = '2015-11-06';
-    seqName     = 'S02';
+    seqName     = 'S03';
 end
 
 if nargin < 4
     % Load 'roi'
-    load([paths.cal filesep batchName filesep 'roi_data.mat'])
+    load([paths.cal filesep batchName filesep seqName filesep 'roi_data.mat'])
 end
 
 if nargin < 5
@@ -214,7 +226,7 @@ while playOn
             else
                 % Advance by necessary number of frames
                 cFrame = min([length(B) ...
-                    (cFrame + playDir*round(playRate * tRender))];
+                    (cFrame + playDir*round(playRate * tRender))]);
             end        
         end
         

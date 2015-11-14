@@ -3,7 +3,7 @@ function acqMaster(batchNum,seqName)
 
 if nargin < 2
     batchName   = '2015-11-06';
-    seqName     = 'S02';
+    seqName     = 'S03';
 end
 
 
@@ -28,7 +28,7 @@ p.numVis = 50;
 p.max_frames = 100;
 
 % Frame rate (fps)
-p.framerate = 1000;
+p.framerate = 250;
 
 % Frames to skip initially in analysis
 %p.skipFrame_start = 5;
@@ -57,13 +57,24 @@ loopDur = 2;
 
 %% Path definitions
 
-% Matt's computer
-if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
+% % Matt's computer
+% if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
+%     % Directory root
+%     %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
+%     root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+%     vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+%     
+% else
+%     error('This computer is not recognized')
+% end
+
+% Alberto's computer
+path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+
+if ~isempty(dir([filesep path]))
     % Directory root
-    %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-    root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-    vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-    
+    root     = '/Users/alberto/Dropbox/Alberto/predator';
+    vid_root = '/Users/alberto/Dropbox/Alberto/predator';
 else
     error('This computer is not recognized')
 end
@@ -95,7 +106,7 @@ if includeCalibration && ...
     % Update status
     update_status(paths.log,batchName,'running calibration','calibrating')
     
-    % Promp for what to do about calibrtaions
+    % Prompt for what to do about calibrtaions
     calChoice = questdlg('What calibration do you want to use?', ...
         'Calibration', ...
         'New', 'Previous', 'Cancel', 'New');
@@ -199,7 +210,7 @@ end
 
 %% Choose (or load) ROI
 
-if isempty(dir([paths.cal filesep batchName filesep 'roi_data.mat']))
+if isempty(dir([paths.cal filesep batchName filesep seqName filesep 'roi_data.mat']))
     
     %TODO: Modify this code for Alberto's proejct, once we start running
     %      calibrations
@@ -254,19 +265,19 @@ if isempty(dir([paths.cal filesep batchName filesep 'roi_data.mat']))
     hold off
     
     % Make data directory
-    if isempty(dir([paths.cal filesep batchName]))
-        mkdir([paths.cal filesep batchName])
+    if isempty(dir([paths.cal filesep batchName filesep seqName]))
+        mkdir([paths.cal filesep batchName filesep seqName])
     end
     
     % Save ROI data
-    save([paths.cal filesep batchName filesep 'roi_data.mat'],'roi')
+    save([paths.cal filesep batchName filesep seqName filesep 'roi_data.mat'],'roi')
     
     close
     
 else
     
     % Load 'roi'
-    load([paths.cal filesep batchName filesep 'roi_data.mat'])
+    load([paths.cal filesep batchName filesep seqName filesep 'roi_data.mat'])
     
 end
 
@@ -274,6 +285,7 @@ end
 %% Run analysis
     
 % Initial list of sequences
+
 seqList = dir([paths.rawvid filesep batchName filesep 'S*']);
     
 % Check list
@@ -289,8 +301,9 @@ motion = [];
 
 % Initialize previous
 expName_prev = [];
-    
-for i = 1:length(seqList)
+
+% adjusted index so that only the second image stack 'S03' was analyzed
+for i = 2:length(seqList)
 
     % Name of current experiment
     expName = seqList(i).name;
@@ -317,8 +330,9 @@ for i = 1:length(seqList)
         mkdir(dPath)
     end
     
+% adjusted if statement to make a new mean image     
     % If this is not the first recording and there is motion in prior movie
-    if i>1      
+    if i>2      
         % Copy meanImage from prior
         copyfile([paths.data filesep batchName filesep ...
                   seqList(currSeq-1).name filesep 'meanImage.tif'],...
