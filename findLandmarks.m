@@ -1,4 +1,4 @@
-function  blob = findLandmarks(blob,pBlob)
+function  [blob, eye] = findLandmarks(blob,pBlob,im)
 % Finds the midline and eye of a fish
 
 % Return the body as a binary
@@ -137,18 +137,21 @@ while true
         blob.sMid(i,1) = blob.sMid(i-1) + ...
                         hypot(blob.xMid(i)-blob.xMid(i-1),blob.yMid(i)-blob.yMid(i-1));
     end
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     % Visualize for debugging
     if 0
+        % plot fish blob binary image with anterior sections subtracted
         subplot(1,2,1)
         imshow(imSketch,[],'InitialMagnification','fit')
         hold on; plot(blob.xMid,blob.yMid,'r+')
         hold off
         
+        % plot intersection of blob and circle
         subplot(1,2,2)
         imshow(cIM,[],'InitialMagnification','fit')
         hold on; plot(blob.xMid(i),blob.yMid(i),'r+')
         hold off
+%         pause
     end
     
     % Erase circle from imSketch
@@ -170,11 +173,11 @@ for i = 1:(length(blob.sMid)-1)
 end
 angl = unwrap(angl);
 
-% If last two points have large anglular changes, trim them
+% If last two points have large angular changes, trim them
 if abs(angl(end-2)-angl(end-1))>Dangl_max
     idx = 1:(length(blob.sMid)-2);
     
-% If leats point has lare change, trim that
+% If last point has large change, trim that
 elseif abs(angl(end-1)-angl(end))>Dangl_max
     idx = 1:(length(blob.sMid)-1);
 
@@ -188,12 +191,13 @@ blob.sMid = blob.sMid(idx);
 blob.xMid = blob.xMid(idx);
 blob.yMid = blob.yMid(idx);
 
-% Reverse direction of body poition
+% Reverse direction of body position
 blob.sMid = max(blob.sMid) - blob.sMid;
 [blob.sMid,idx] = sort(blob.sMid);
 blob.xMid = blob.xMid(idx);
 blob.yMid = blob.yMid(idx);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Visualize progress to this point
 if 0
     figure
@@ -201,6 +205,7 @@ if 0
     hold on
     plot(blob.xMid,blob.yMid,'go-')
     hold off
+%     pause
 end
 
 
@@ -293,132 +298,432 @@ for i = 2:length(blob.xMid)
 end
 
 
-%% FIND EYES 
+%% FIND EYES (currently commented out) 
+
+% % Redefine rotation matrix for local coord system with new points
+% R = local_system(originNew,rostNew);
+% 
+% % Local coordinates
+% [xBoundL,yBoundL] = global_to_local(originNew,R,xBound,yBound);
+% 
+% % Chop off body
+% idx = xBoundL>0;
+% xBoundL = xBoundL(idx);
+% yBoundL = yBoundL(idx);
+% 
+% % Remove tail, if present
+% idx = abs(yBoundL) < 2*cran_len;
+% xBoundL = xBoundL(idx);
+% yBoundL = yBoundL(idx);
+% 
+% % Separate left and right sides
+% idx = yBoundL>=0;
+% xLL = xBoundL(idx);
+% yLL = yBoundL(idx);
+% xLR = xBoundL(~idx);
+% yLR = yBoundL(~idx);
+% 
+% % New edge values on right side in local FOR
+% %[xEdgeR,yEdgeR,xLR,yLR,rEdgeR] = findEdge(R,originNew,im,thetaR,len);
+% 
+% % New edge values on left side in local FOR
+% %[xEdgeL,yEdgeL,xLL,yLL,rEdgeL] = findEdge(R,originNew,im,thetaL,len);
+% 
+% % Number of points in the top quartile to define eye position
+% num_pts = round(length(xLR)/5);
+% 
+% % LEFT EYE ---
+% 
+% % Sort y-values by x-values
+% [xLL,iL] = sort(xLL,1,'descend');
+% yLL = yLL(iL);
+% 
+% % Cut-off of y-value at eye
+% Lcut = .75*max(yLL);
+% 
+% % Index of first point
+% iFirst = find(yLL>=Lcut,1,'first');
+% 
+% % Index of y-values to include
+% iL = iFirst:min([(iFirst+num_pts) length(yLL)]);
+% 
+% % Mean x-position
+% xEyeL_l = mean(xLL(iL));
+% 
+% % Mean (& adjusted) y-value
+% yEyeL_l = .75 * mean(yLL(iL));
+% 
+% 
+% % RIGHT EYE ---
+% 
+% % Sort y-values by x-values
+% [xLR,iR] = sort(xLR,1,'descend');
+% yLR = yLR(iR);
+% 
+% % Cut-off of y-value at eye
+% Rcut = .75*max(abs(yLR));
+% 
+% % Index of first point
+% iFirst = find(abs(yLR)>=Rcut,1,'first');
+% 
+% % Index of y-values to include
+% iR = iFirst:min([(iFirst+num_pts) length(yLR)]);
+% 
+% % Mean x-position
+% xEyeR_l = mean(xLR(iR));
+% 
+% % Mean (& adjusted) y-value
+% yEyeR_l = .75 * mean(yLR(iR));
+% 
+% clear iR iL
+% 
+% % % Identify the rise in width at the right eye
+% % [xLR,iR] = sort(xLR,1,'descend');
+% % yLR = yLR(iR);
+% % %Rcut = quantile(abs(yLR),.75);
+% % Rcut = .75*max(abs(yLR));
+% % iR = find(abs(yLR)>=Rcut,num_pts);
+% % xEyeR_l = mean(xLR(iR:(iL+num_pts)));
+% % yEyeR_l = .75 * mean(yLR(iR:(iL+num_pts)));
+% 
+% % (x,y) coordinates for eye positions in local coordinates
+% xMean = mean([xEyeL_l xEyeR_l]);
+% yMean = mean([yEyeL_l -yEyeR_l]);
+% 
+% % Determine global coordinates for the two eyes
+% [xEyeR,yEyeR] = local_to_global(originNew,R,xMean,-yMean);
+% [xEyeL,yEyeL] = local_to_global(originNew,R,xMean,yMean);
+% 
+% % Store values for the eyes (global coordinates)
+% blob.xEye = [xEyeR xEyeL];
+% blob.yEye = [yEyeR yEyeL];
+% 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% if 0
+%     % Get peripheral shapes
+%     [b,l] = bwboundaries(blob.BWsmall,'noholes');
+%     
+%     subplot(2,1,1)
+%     imshow(blob.im,[],'InitialMagnification','fit')
+%     hold on; 
+%     plot(blob.xMid,blob.yMid,'r.')
+%     plot(b{1}(:,2),b{1}(:,1),'-',rostNew(1),rostNew(2),'rs')
+%     
+%     plot(blob.xMid(iHead),blob.yMid(iHead),'ro')
+%     %plot(polyval(cHx,blob.sMid(iHead)),polyval(cHy,blob.sMid(iHead)),'g-')
+%     plot(origin(1),origin(2),'g+')
+%     plot(blob.xEye,blob.yEye,'yo')
+% 
+% 
+%     hold off
+%     
+%     subplot(2,1,2)
+%     plot(xLL,yLL,'-',xLR,yLR,'-',xMean,yMean,'o',xMean,-yMean,'o',...
+%         [min(xLL) max(xLL)],[1 1].*Lcut,'--',...
+%         [min(xLL) max(xLL)],[-1 -1].*Rcut,'--')
+%     axis equal
+%     pause
+% end
+
+%% Find Eyes & Eye orientation
 
 % Redefine rotation matrix for local coord system with new points
 R = local_system(originNew,rostNew);
 
-% Local coordinates
-[xBoundL,yBoundL] = global_to_local(originNew,R,xBound,yBound);
+% % Store values for eye position in eye structure (global coordinates)
+% eye.xEye = zeros(1,2);
+% eye.yEye = zeros(1,2);
 
-% Chop off body
-idx = xBoundL>0;
-xBoundL = xBoundL(idx);
-yBoundL = yBoundL(idx);
+% DEFINE ROI ----
 
-% Remove tail, if present
-idx = abs(yBoundL) < 2*cran_len;
-xBoundL = xBoundL(idx);
-yBoundL = yBoundL(idx);
+% rostrum point global coordinates
+xRost = rostNew(1);
+yRost = rostNew(2);
 
-% Separate left and right sides
-idx = yBoundL>=0;
-xLL = xBoundL(idx);
-yLL = yBoundL(idx);
-xLR = xBoundL(~idx);
-yLR = yBoundL(~idx);
+% origin point global coordinates
+xOrigin = originNew(1);
+yOrigin = originNew(2);
 
-% New edge values on right side in local FOR
-%[xEdgeR,yEdgeR,xLR,yLR,rEdgeR] = findEdge(R,originNew,im,thetaR,len);
+% rostrum in local coordinates
+[xRostL,yRostL] = global_to_local(originNew,R,xRost,yRost);
 
-% New edge values on left side in local FOR
-%[xEdgeL,yEdgeL,xLL,yLL,rEdgeL] = findEdge(R,originNew,im,thetaL,len);
+% origin in local coordinates (already the origin...should be (0,0))
+xOriginL = 0; 
+yOriginL = 0;
 
-% Number of points in the top quartile to define eye position
-num_pts = round(length(xLR)/5);
+% 50% the distance between origin and rostrum
+% roiL.radius = 0.25*hypot(xRostL-xOriginL,yRostL-yOriginL);
+roiL.radius = 0.5 * xRostL;
 
-% LEFT EYE ---
+% x-coordinates for ROI around eyes in local FOR
+roiL.x = [xRostL + roiL.radius; xOriginL - roiL.radius;...
+    xOriginL - roiL.radius; xRostL + roiL.radius]; 
 
-% Sort y-values by x-values
-[xLL,iL] = sort(xLL,1,'descend');
-yLL = yLL(iL);
+% y-coordinates for ROI around eyes in local FOR
+roiL.y = [yRostL + roiL.radius; yOriginL + roiL.radius;...
+    yOriginL - roiL.radius; yRostL - roiL.radius];
 
-% Cut-off of y-value at eye
-Lcut = .75*max(yLL);
+% ROI in global coordinates
+[roiG.x,roiG.y] = local_to_global(originNew,R,roiL.x,roiL.y);
 
-% Index of first point
-iFirst = find(yLL>=Lcut,1,'first');
+% EYE BLOBS --------
 
-% Index of y-values to include
-iL = iFirst:min([(iFirst+num_pts) length(yLL)]);
+% initialize blob number indicator
+blobNum = 1;
 
-% Mean x-position
-xEyeL_l = mean(xLL(iL));
+% initialize threshold value indicator
+thresh = 1;
 
-% Mean (& adjusted) y-value
-yEyeL_l = .75 * mean(yLL(iL));
+% crop original image to blob ROI
+im = imcrop(im,blob.roi_blob);
 
+% create a binary mask based on the selected ROI in global coordinates
+maskEyes = roipoly(im,roiG.x,roiG.y);
 
-% RIGHT EYE ---
+% set initial threshold value
+tVal = 69;
 
-% Sort y-values by x-values
-[xLR,iR] = sort(xLR,1,'descend');
-yLR = yLR(iR);
+% set the stepsize for decreasing tVal
+tStep = 2;
 
-% Cut-off of y-value at eye
-Rcut = .75*max(abs(yLR));
+% adaptively find threshold value s.t. there are only two blobs
+while blobNum && thresh
+    
+    % Threshold image and include only ROI
+    imBW1  = ~im2bw(im,tVal/255) & maskEyes;
+    
+    % square structuring element with radius=2
+    seEye = strel('square',2);
+    
+    % Perform a morphological close (dilation + erosion) operation on the image.
+    imBW1 = imopen(imBW1,seEye);
+    % figure, imshow(imBW,'InitialMagnification','fit')
+    % title('Threshold + Open')
+    
+    % find convex hulls of objects in imBW, with 4-connected neighborhood
+    imBW2 = bwconvhull(imBW1,'objects',4);
+    % figure, imshow(CH_objects,'InitialMagnification','fit');
+    % title('Convex hulls')
+    
+    % find connected components in binary image within ROI
+    cc = bwconncomp(imBW2);
+    
+    ccProps = regionprops(cc,'Area');
+    
+    % if there are only two objects & their area is similar ...
+    if cc.NumObjects==2 && (abs(ccProps(1).Area-ccProps(2).Area))<45
+        
+        % turn off indicator to exit loop
+        blobNum = 0;
+        
+        % otherwise...
+    else
+        
+        % decrease the threshold value
+        tVal = tVal - tStep;
+    end
+    
+    % check that threshold value doesn't get too low
+    if tVal < 55
+        % set threshold indicator
+        thresh = 0;
+    end
+        
+    
+end
 
-% Index of first point
-iFirst = find(abs(yLR)>=Rcut,1,'first');
+% call regionprops with list of desired measurements 
+eyeProps = regionprops(imBW2, 'Orientation', 'Centroid', 'Area');
 
-% Index of y-values to include
-iR = iFirst:min([(iFirst+num_pts) length(yLR)]);
+% LEFT or RIGHT EYE ------
 
-% Mean x-position
-xEyeR_l = mean(xLR(iR));
+% y-position of first eye in local coordinates
+[~,eye1Pos] = global_to_local(originNew,R,...
+    eyeProps(1).Centroid(1),eyeProps(1).Centroid(2));
 
-% Mean (& adjusted) y-value
-yEyeR_l = .75 * mean(yLR(iR));
+% NOTE: flip sign on eye1Pos for correct L/R eye 
+% This is because image origin is top-left, and y-val increases as you go
+% down the rows
 
-clear iR iL
+% check if the first eye is the left or the right eye 
+if -eye1Pos<0
+    
+    % save left eye position
+    xEyeL = eyeProps(2).Centroid(1);
+    yEyeL = eyeProps(2).Centroid(2);
+    
+    % save right eye position 
+    xEyeR = eyeProps(1).Centroid(1);
+    yEyeR = eyeProps(1).Centroid(2);
+    
+    % logical to identify which is right eye 
+    % 1 corresponds to first element of eyeProps
+    rightEye = 1;  
+else
+    % save left eye position 
+    xEyeL = eyeProps(1).Centroid(1);
+    yEyeL = eyeProps(1).Centroid(2);
+    
+    % save right eye position 
+    xEyeR = eyeProps(2).Centroid(1);
+    yEyeR = eyeProps(2).Centroid(2);
+    
+    % logical to identify which is right eye
+    % 1 corresponds to first element of eyeProps
+    rightEye = 0;
+end
 
-% % Identify the rise in width at the right eye
-% [xLR,iR] = sort(xLR,1,'descend');
-% yLR = yLR(iR);
-% %Rcut = quantile(abs(yLR),.75);
-% Rcut = .75*max(abs(yLR));
-% iR = find(abs(yLR)>=Rcut,num_pts);
-% xEyeR_l = mean(xLR(iR:(iL+num_pts)));
-% yEyeR_l = .75 * mean(yLR(iR:(iL+num_pts)));
- 
-xMean = mean([xEyeL_l xEyeR_l]);
-yMean = mean([yEyeL_l -yEyeR_l]);
-
-% Determine global coordinates for the two eyes
-[xEyeR,yEyeR] = local_to_global(originNew,R,xMean,-yMean);
-[xEyeL,yEyeL] = local_to_global(originNew,R,xMean,yMean);
-
-% Store values for the eye
+% Store values for eye position (global coordinates)
 blob.xEye = [xEyeR xEyeL];
 blob.yEye = [yEyeR yEyeL];
 
-if 0
-    % Get peripheral shapes
-    [b,l] = bwboundaries(blob.BWsmall,'noholes');
-    
-    subplot(2,1,1)
-    imshow(blob.im,[],'InitialMagnification','fit')
-    hold on; 
-    plot(blob.xMid,blob.yMid,'r.')
-    plot(b{1}(:,2),b{1}(:,1),'-',rostNew(1),rostNew(2),'rs')
-    
-    plot(blob.xMid(iHead),blob.yMid(iHead),'ro')
-    %plot(polyval(cHx,blob.sMid(iHead)),polyval(cHy,blob.sMid(iHead)),'g-')
-    plot(origin(1),origin(2),'g+')
-    plot(blob.xEye,blob.yEye,'yo')
+% Store values for eye position in eye structure (global coordinates)
+eye.xEye = [xEyeR xEyeL];
+eye.yEye = [yEyeR yEyeL];
 
+%------------------------- Sanity Check ---------------------------------%
+if false
+    close all
+    % plot original image, rostrum & head points
+    figOrig = figure;
+    subplot(2,1,1), imshow(im)
+    hold on; plot(xOrigin,yOrigin,'ro',xRost,yRost,'yo')
+    axs1 = gca;
+%     plot(roiGlob.x,roiGlob.y,'*')
 
-    hold off
+    % plot eyes 
+    plot(axs1,blob.xEye,blob.yEye,'ow');
     
-    subplot(2,1,2)
-    plot(xLL,yLL,'-',xLR,yLR,'-',xMean,yMean,'o',xMean,-yMean,'o',...
-        [min(xLL) max(xLL)],[1 1].*Lcut,'--',...
-        [min(xLL) max(xLL)],[-1 -1].*Rcut,'--')
-    axis equal
+    
+    % plot the binary mask for eye region
+    subplot(2,1,2), imshow(imBW2)
+    hold on; plot(xOrigin,yOrigin,'ro',xRost,yRost,'yo')
+    axs2 = gca;
+    % plot eyes
+    plot(axs2,blob.xEye,blob.yEye,'ok');
+% pause
 end
 
+% EYE ORIENTATION -------
 
+% preallocate boundary points vectors
+xPnts = zeros(2,2);
+yPnts = zeros(2,2);
 
+% preallocate boundary points vectors (local FOR)
+xPntsL = zeros(2,2);
+yPntsL = zeros(2,2);
+
+% preallocate eye orientation vector
+eyePhi = zeros(1,2);
+
+% preallocate eye orientation vector (local FOR)
+eyePhiL = zeros(1,2);
+
+% find object boundaries (points along the perimeter of eye blobs) 
+eyeBound = bwboundaries(imBW2,'noholes'); 
+
+for j=1:length(eyeBound)
+    
+    % extract x-coordinates of boundary
+    xBoundary = eyeBound{j}(:,2);
+    
+    % extract y-coordinates of boundary
+    yBoundary = eyeBound{j}(:,1);
+    
+    % compute distances between all points
+    ptDists = dist([xBoundary'; yBoundary']);
+    
+    % find the max val for each column of ptDists & their index
+    [Y,I]=max(ptDists);
+    
+    % find the largest of all maxima and its index in Y (one point)
+    [~,ind1]=max(Y);
+    
+    % find the index of the other point
+    ind2 = I(ind1);
+    
+    % store x-coordinates of points at far end of blobs
+    xPnts(j,:) = [eyeBound{j}(ind1,2), eyeBound{j}(ind2,2)];
+    
+    % store y-coordinates of points at far end of blobs
+    yPnts(j,:) = [eyeBound{j}(ind1,1), eyeBound{j}(ind2,1)];
+    
+    % x and y-coords in local FOR of same points
+    [tmp_xPntsL, tmp_yPntsL] = global_to_local(originNew,R,...
+        xPnts(j,:)',yPnts(j,:)');
+    
+    xPntsL(j,:) = tmp_xPntsL';
+    
+    yPntsL(j,:) = tmp_yPntsL';
+    
+    % NOTE: need to change order of difference in y-vals for correct
+    % eye orientation angle
+    
+    % compute eye orientation (w.r.t. global x-axis) in radians 
+%     eyePhi(j) = atan2(yPnts(1)-yPnts(2),xPnts(1)-xPnts(2));
+    eyePhi(j) = atan((yPnts(2)-yPnts(1))/(xPnts(1)-xPnts(2)));
+
+    % compute eye orientation (w.r.t. body axis) in radians 
+    eyePhiL(j) = atan((yPntsL(2)-yPntsL(1))/(xPntsL(1)-xPntsL(2)));
+    
+    
+%     % bring figure with original image to front
+%     figure(figOrig);
+%     
+%     % draw line between points
+%     line(xPnts,yPnts,'color','c','LineWidth',2);
+    
+%     plot(axs2,xBoundary,yBoundary,'m')
+end
+
+% if rightEye is true (i.e. if first element of eyeProps is right eye)...
+if rightEye
+    
+    % do nothing...
+else
+    
+    % flip order of xPnts
+    xPnts = flip(xPnts);
+    
+    % flip order of yPnts
+    yPnts = flip(yPnts);
+    
+    % flip order of eyePhi
+    eyePhi = flip(eyePhi);
+    
+    % flip order of eyePhiL
+    eyePhiL = flip(eyePhiL);
+end
+
+% store original (cropped) image
+blob.imOrig = im;
+
+% store original (cropped) image
+eye.im = im;
+
+% store points used for eye orientation calculation
+eye.xPnts = xPnts;
+eye.yPnts = yPnts;
+
+% store points used for eye orientation calculation (local FOR)
+eye.xPntsL = xPntsL;
+eye.yPntsL = yPntsL;
+
+% store eye orientation (first element is right eye)
+eye.Phi = eyePhi;
+
+% store eye orientation (first element is right eye)
+eye.PhiL = eyePhiL;
+
+% store rotation matrix
+eye.R = R;
+
+% store origin
+eye.origin = originNew;
+
+% store threshold value used
+eye.tVal = tVal;
 
 
 % function [imBW,imBWsmall] = giveBlobs(imBlob)
@@ -541,7 +846,7 @@ R = [xaxis(1:2); yaxis(1:2)];
 
 
 function [xT,yT] = global_to_local(origin,R,x,y)
-% Assumes columns vectors for coordinates
+% Assumes column vectors for coordinates
 
 pts = [x y];
 
@@ -563,7 +868,8 @@ function [xT,yT] = local_to_global(origin,R,x,y)
 pts = [x y];
 
 % Rotate points
-ptsT = [inv(R) * pts']';
+ptsT = (R \ pts')';
+% ptsT = [inv(R) * pts']';
 
 % Translate global coordinates wrt origin
 ptsT(:,1) = ptsT(:,1) + origin(1);

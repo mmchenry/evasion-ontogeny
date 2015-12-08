@@ -40,7 +40,7 @@ if isempty(a2)
     % Start sum image
     imSum = double(imCurr.*0);
     
-    % Min image
+    % Min image (hilights?) 
     if strcmp(class(imCurr),'uint8')
         imMin = imCurr.*0 + 255; 
         
@@ -54,7 +54,7 @@ if isempty(a2)
     
     clear tmp
       
-    % Loop through frames 
+    % Loop through frames (iteratively updates 'imSum' and 'imMin') 
     for i = 1:length(frIdx)
         
         % Add current frame to sum image
@@ -63,7 +63,7 @@ if isempty(a2)
          % Apply calibration to undistort image
          %imCurr = undistortImage(imCurr, cal.cameraParams,'OutputView','full');
     
-        % Sum pixel values
+        % Sum pixel values (cumulative sum)
         imSum  = imSum + double(imCurr);
        
         % Update min image

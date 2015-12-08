@@ -17,23 +17,34 @@ playDir = 1;
 
 if nargin < 1
     
-%     % Matt's computer
-%     if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
-%         % Directory root
-%         %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-%         root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-%         vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-%     else
-%         error('This computer is not recognized')
-%     end
+    %     % Matt's computer
+    %     if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
+    %         % Directory root
+    %         %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
+    %         root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    %         vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    %     else
+    %         error('This computer is not recognized')
+    %     end
     
-    % Alberto's computer
-    path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+    % Alberto's MacMini
+    % path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+    %
+    % if ~isempty(dir([filesep path]))
+    %     % Directory root
+    %     root     = '/Users/alberto/Dropbox/Alberto/predator';
+    %     vid_root = '/Users/alberto/Dropbox/Alberto/predator';
+    % else
+    %     error('This computer is not recognized')
+    % end
+    
+    % Alberto's MacBook
+    path = fullfile('Users','A_Soto','Documents','Home');
     
     if ~isempty(dir([filesep path]))
         % Directory root
-        root     = '/Users/alberto/Dropbox/Alberto/predator';
-        vid_root = '/Users/alberto/Dropbox/Alberto/predator';
+        root     = '/Volumes/Backup/ZF_visuomotor';
+        vid_root = '/Volumes/Backup/ZF_visuomotor';
     else
         error('This computer is not recognized')
     end
@@ -61,8 +72,8 @@ end
 %% Set defaults
 
 if nargin < 3
-    batchName   = '2015-11-06';
-    seqName     = 'S03';
+    batchName   = '2015-11-16';
+    seqName     = 'S01';
 end
 
 if nargin < 4
@@ -78,7 +89,7 @@ end
 %% Load data
 
 % Load parameters 'p'
-load([paths.data filesep batchName 'parameters.mat'])
+load([paths.data filesep batchName filesep seqName filesep 'parameters.mat'])
 
 % List of sequences
 seqList = dir([paths.data filesep batchName filesep 'S*']);
@@ -124,9 +135,12 @@ load([dPath filesep 'Sequence stats.mat'])
 
 % Load filenames for full frames
 a = dir([vPath filesep '*.' p.nameSuffix]);
+% a = dir([vPath filesep 'exp*']);
 
 % Load list of thumbnails
 %aT = dir([tPath filesep '*.' p.nameSuffix]);
+
+% % get rid of first two entries in a - they're junk files 
 
 % Check frames against data
 if isempty(a)

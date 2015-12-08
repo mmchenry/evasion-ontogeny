@@ -13,7 +13,10 @@ reportStatus = 1;
 %% Initialize data structure 'B'
 
 % Load filenames of frames
-a = dir([vPath  filesep '*.' p.nameSuffix]);
+% a = dir([vPath  filesep '*.' p.nameSuffix]);
+
+% Alternate to load filenames (use when 'ghost' files present) 
+a = dir([vPath filesep 'exp*']);
 
 if isempty(a)
     error('No video frames found');
@@ -27,10 +30,10 @@ if ~isempty(a2)
     
     % Load data 'B'
     load([dPath filesep 'blob data.mat']);
-
+    
 % Otherwise . . .
 else
-  
+    
     % find total number of video frames
     frTot = length(a);
     
@@ -43,12 +46,12 @@ else
         
         % Read frame number
         frNum = str2num(a(i).name(end-p.num_digit_frame-length(p.nameSuffix):...
-                        end-length(p.nameSuffix)-1));
-
+            end-length(p.nameSuffix)-1));
+        
         % Store
         B(i).fr_num     = frNum;
         B(i).filename   = a(i).name;
-            
+        
     end
     
     % Save data 'B' to file 'blob data.mat'
@@ -187,6 +190,9 @@ if strcmp(action,'sequential')
     % Use a placeholder for initial iteration
     blob = nan;
     
+    % Use a placeholder for initial iteration
+    eye = nan;
+    
     % Loop thru frames
     for i =  1:length(frames); 
         
@@ -225,20 +231,17 @@ disp(['     . . . completed in ' num2str(telap) ' min'])
 % Save data 'B'
 save([dPath filesep 'blob data.mat'],'B')
 
-
-
-
 function blob = ana_frame(action,cFrame,frames,tPath,vPath,...
                           dPath,B,p,cal,roi,imMean,pBlob)
 
 % Set default
 if (nargin < 9) 
-    bBlob = nan;
+    pBlob = nan;
 end
 
 % Read frame
-[im,cmap] = readFrame(vPath,B,cFrame);
-[im,cmap] = imread([vPath filesep B(cFrame).filename]);
+% [im,cmap] = readFrame(vPath,B,cFrame);
+[im,~] = imread([vPath filesep B(cFrame).filename]);
 
 if ~isempty(cal)    
     % Apply calibration to undistort image
@@ -255,13 +258,14 @@ if ~isnan(blob.im(1))
     try
         % If looking at fast start (beyond first frame) . . .
         if strcmp(action,'sequential') && (cFrame>frames(1))
+            
             % Code that finds landmarks
-            blob = findLandmarks(blob,pBlob);
+            [blob,eye] = findLandmarks(blob,pBlob,im);
             
         % Otherwise . . .
         else
             % Code that finds landmarks
-            blob = findLandmarks(blob);
+            [blob,eye] = findLandmarks(blob,pBlob,im);
         end
 
         
@@ -271,14 +275,19 @@ if ~isnan(blob.im(1))
         % Write data
         blob.xMid = nan;
         
+        eye.Phi = [nan nan];
+        
     end
     
     % Visualize frame for debugging (switch "parfor" loop to "for")
     % (Must be commented if using parfor)
-    %visData(blob,im,['Frame ' num2str(cFrame)])
+%     visData(blob,im,['Frame ' num2str(cFrame)])
 
-    % Save thumbnail file
+    % Save blob data
     saveBlob(tPath,blob,B(cFrame).filename)
+    
+    % Save eye data (append to file in Thumbnail video folder)
+    saveEyes(tPath,eye,B(cFrame).filename)
     
 end
 
@@ -294,24 +303,26 @@ B(cFrame).xPerim     = Btmp.xPerim;
 B(cFrame).yPerim     = Btmp.yPerim;
 B(cFrame).roi_blob   = Btmp.roi_blob;
 
-
 function [im,cmap] = readFrame(vPath,B,cFrame)
+% reads current frame, 'im' is an MxN array containing image data
 [im,cmap] = imread([vPath filesep B(cFrame).filename]);
-
 
 function lg = setLog(val)
 lg.success = val;
-
 
 function saveBlob(tPath,blob,fileName)
 
 % Save blob data
 save([tPath filesep fileName(1:end-4)],'blob')
 
+function saveEyes(tPath,eye,fileName)
+
+% Save eye data
+save([tPath filesep fileName(1:end-4)],'eye','-append')
+
 function writeFile(pathh,lg)
 % Allows writing a file within 'parfor' loop
 save(pathh,'lg')
-
 
 function visData(blob,imWholecl,ttxt)
 
@@ -339,9 +350,15 @@ pause(0.01)
 
 function blob = findBlobs(imStart,imMean,roi)
 
-% Adjust grayscale values and convert to double
-im     = (imadjust(imStart));
-imSub  = (imadjust(imMean));
+% Adjust grayscale values and convert to double 
+
+% NOTE: converting to double will mess up the code. 
+%---SKIP imadjust steps if photos have been preprocessed in Photoshop----
+% im     = (imadjust(imStart));
+% imSub  = (imadjust(imMean));
+
+im = imStart;
+imSub = imMean;
 
 % Subtract background
 warning off
@@ -489,12 +506,16 @@ blob.BWsmall = imBWsmall;
 function [imBW,numBlob] = returnBlob(imBW)
 % Returns binary image of blobs
 
-% Close gaps with dilation and erosion
+% Close gaps with dilation and erosion (should be able to use 'imclose')
 se   = strel('disk',6);
 imBW = imdilate(imBW,se);
 imBW = imerode(imBW,se);
+% imBW = imclose(imBW,se);
 
-% Identify blobs
+% Identify blobs (BWCONNCOMP is more memory efficient) 
+% LL = bwconncomp(imBW);
+% props = regionprops(LL,'Centroid','Area');
+
 LL    = bwlabel(imBW);
 props = regionprops(LL,'Centroid','Area');
 

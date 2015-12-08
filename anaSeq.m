@@ -40,7 +40,8 @@ if strcmp(action,'prelim')
         else
             blob.xMid = nan;
         end
-        
+   
+ %%%%%%%%------------------ Do eye computations here ----------
         % If not-nan data
         if ~isnan(blob.xMid)
             

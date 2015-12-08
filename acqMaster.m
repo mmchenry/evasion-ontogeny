@@ -1,9 +1,9 @@
-function acqMaster(batchNum,seqName)
+function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2015-11-06';
-    seqName     = 'S03';
+    batchName   = '2015-11-16-COPY';
+    seqName     = 'S04';
 end
 
 
@@ -46,7 +46,7 @@ p.FS_period = [0.25 1.5];
 p.tolAng = 0.1;
 
 % Determines motion from minimum area of blob for moving pixels (pix)
-p.minBlobArea = 20e3;
+p.minBlobArea = 5e3;
 
 % Duration (in min) to wait before looking for another sequence to analyze
 waitDur = 0.5;
@@ -68,16 +68,29 @@ loopDur = 2;
 %     error('This computer is not recognized')
 % end
 
-% Alberto's computer
-path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+% Alberto's MacMini
+% path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+% 
+% if ~isempty(dir([filesep path]))
+%     % Directory root
+%     root     = '/Users/alberto/Dropbox/Alberto/predator';
+%     vid_root = '/Users/alberto/Dropbox/Alberto/predator';
+% else
+%     error('This computer is not recognized')
+% end
+
+% Alberto's MacBook
+path = fullfile('Users','A_Soto','Documents','Home');
 
 if ~isempty(dir([filesep path]))
     % Directory root
-    root     = '/Users/alberto/Dropbox/Alberto/predator';
-    vid_root = '/Users/alberto/Dropbox/Alberto/predator';
+    root     = '/Volumes/Backup/ZF_visuomotor';
+    vid_root = '/Volumes/Backup/ZF_visuomotor';
 else
     error('This computer is not recognized')
 end
+
+
 
 % To raw video files 
 paths.rawvid = [vid_root filesep 'Raw video'];
@@ -283,16 +296,10 @@ end
 
 
 %% Run analysis
-    
-% Initial list of sequences
 
-seqList = dir([paths.rawvid filesep batchName filesep 'S*']);
-    
-% Check list
-if isempty(seqList)
-    error('No sequences in the date directory')
-end
-    
+% Modified to treat each sequence independently, to create new 'mean image'
+% for every image sequence
+
 % Set logical
 continue_analysis = true;
 
@@ -302,55 +309,45 @@ motion = [];
 % Initialize previous
 expName_prev = [];
 
-% adjusted index so that only the second image stack 'S03' was analyzed
-for i = 2:length(seqList)
+% Name of current experiment
+% NOTE: expName same as seqName, so got rid of for loop
+expName = seqName;
 
-    % Name of current experiment
-    expName = seqList(i).name;
-    
-    % Directory for current video
-    vPath = [paths.rawvid filesep batchName filesep expName];
-    
-    % Directory for current thumbnails
-    tPath = [paths.thumb filesep batchName filesep expName];
-    
-    % Directory for current data
-    dPath = [paths.data filesep batchName filesep expName];
-    
-    % Directory path for calibration
-    cPath = [paths.cal filesep batchName];
-    
-    % Make thumbnail directory, if not present
-    if isempty(dir(tPath))
-        mkdir(tPath)
-    end
-    
-    % Make data directory, if not present
-    if isempty(dir(dPath))
-        mkdir(dPath)
-    end
-    
-% adjusted if statement to make a new mean image     
-    % If this is not the first recording and there is motion in prior movie
-    if i>2      
-        % Copy meanImage from prior
-        copyfile([paths.data filesep batchName filesep ...
-                  seqList(currSeq-1).name filesep 'meanImage.tif'],...
-                 [dPath filesep 'meanImage.tif']);      
-    end
-    
-    % Update status at command line
-    disp(' '); disp(' ')
-    disp(['---------- Analyzing ' expName ' in ' batchName ' ----------'])
-    
-    % Analyze for midlines
-    motion = anaFrames('sequential',dPath,vPath,tPath,cPath,p,roi,includeCalibration);
-                   
-    % Analyze sequence data
-    bStats = anaSeq('prelim',dPath,tPath,cPath,p);
+% Directory for current video
+vPath = [paths.rawvid filesep batchName filesep expName];
+
+% Directory for current thumbnails
+tPath = [paths.thumb filesep batchName filesep expName];
+
+% Directory for current data
+dPath = [paths.data filesep batchName filesep expName];
+
+% Directory path for calibration
+cPath = [paths.cal filesep batchName];
+
+% Make thumbnail directory, if not present
+if isempty(dir(tPath))
+    mkdir(tPath)
 end
 
+% Make data directory, if not present
+if isempty(dir(dPath))
+    mkdir(dPath)
+end
+
+% NOTE: got rid of if statement to make a new mean image for every sequence
+
+% Update status at command line
+disp(' '); disp(' ')
+disp(['---------- Analyzing ' expName ' in ' batchName ' ----------'])
+
+% Analyze for midlines
+motion = anaFrames('sequential',dPath,vPath,tPath,cPath,p,roi,includeCalibration);
+
+% Analyze sequence data
+bStats = anaSeq('prelim',dPath,tPath,cPath,p);
+
 % Save parameters ('p')
-save([paths.data filesep batchName 'parameters'],'p')
+save([dPath filesep 'parameters'],'p')
 
 
