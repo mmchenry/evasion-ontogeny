@@ -2,8 +2,8 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2015-11-16-COPY';
-    seqName     = 'S04';
+    batchName   = '2015-11-16';
+    seqName     = 'S01';
 end
 
 
@@ -68,27 +68,27 @@ loopDur = 2;
 %     error('This computer is not recognized')
 % end
 
-% Alberto's MacMini
-% path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
-% 
-% if ~isempty(dir([filesep path]))
-%     % Directory root
-%     root     = '/Users/alberto/Dropbox/Alberto/predator';
-%     vid_root = '/Users/alberto/Dropbox/Alberto/predator';
-% else
-%     error('This computer is not recognized')
-% end
-
-% Alberto's MacBook
-path = fullfile('Users','A_Soto','Documents','Home');
+% % % Alberto's MacMini
+path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
 
 if ~isempty(dir([filesep path]))
     % Directory root
-    root     = '/Volumes/Backup/ZF_visuomotor';
-    vid_root = '/Volumes/Backup/ZF_visuomotor';
+    root     = '/Volumes/VisualPred/ZF_visuomotor';
+    vid_root = '/Volumes/VisualPred/ZF_visuomotor';
 else
     error('This computer is not recognized')
 end
+
+% % % Alberto's MacBook
+% path = fullfile('Users','A_Soto','Documents','Home');
+% 
+% if ~isempty(dir([filesep path]))
+%     % Directory root
+%     root     = '/Volumes/Backup/ZF_visuomotor';
+%     vid_root = '/Volumes/Backup/ZF_visuomotor';
+% else
+%     error('This computer is not recognized')
+% end
 
 
 

@@ -481,7 +481,7 @@ im = imcrop(im,blob.roi_blob);
 maskEyes = roipoly(im,roiG.x,roiG.y);
 
 % set initial threshold value
-tVal = 69;
+tVal = 73;
 
 % set the stepsize for decreasing tVal
 tStep = 2;
@@ -556,6 +556,12 @@ if -eye1Pos<0
     xEyeR = eyeProps(1).Centroid(1);
     yEyeR = eyeProps(1).Centroid(2);
     
+    % save orientation of left eye
+    anglL = eyeProps(2).Orientation;
+    
+    % save orientation of right eye
+    anglR = eyeProps(1).Orientation;
+    
     % logical to identify which is right eye 
     % 1 corresponds to first element of eyeProps
     rightEye = 1;  
@@ -567,6 +573,12 @@ else
     % save right eye position 
     xEyeR = eyeProps(2).Centroid(1);
     yEyeR = eyeProps(2).Centroid(2);
+    
+    % save orientation of left eye
+    anglL = eyeProps(1).Orientation*pi/180;
+    
+    % save orientation of right eye
+    anglR = eyeProps(2).Orientation*pi/180;  
     
     % logical to identify which is right eye
     % 1 corresponds to first element of eyeProps
@@ -581,24 +593,28 @@ blob.yEye = [yEyeR yEyeL];
 eye.xEye = [xEyeR xEyeL];
 eye.yEye = [yEyeR yEyeL];
 
+% store eye orientation
+eye.thetaR = anglR;
+eye.thetaL = anglL; 
+
 %------------------------- Sanity Check ---------------------------------%
 if false
     close all
-    % plot original image, rostrum & head points
+    
     figOrig = figure;
-    subplot(2,1,1), imshow(im)
+    % plot the binary mask for eye region
+    subplot(2,1,1), imshow(imBW2)
     hold on; plot(xOrigin,yOrigin,'ro',xRost,yRost,'yo')
     axs1 = gca;
-%     plot(roiGlob.x,roiGlob.y,'*')
 
     % plot eyes 
     plot(axs1,blob.xEye,blob.yEye,'ow');
     
-    
-    % plot the binary mask for eye region
-    subplot(2,1,2), imshow(imBW2)
+    % plot original image, rostrum & head points
+    subplot(2,1,2), imshow(im)
     hold on; plot(xOrigin,yOrigin,'ro',xRost,yRost,'yo')
     axs2 = gca;
+
     % plot eyes
     plot(axs2,blob.xEye,blob.yEye,'ok');
 % pause
@@ -662,17 +678,26 @@ for j=1:length(eyeBound)
     
     % compute eye orientation (w.r.t. global x-axis) in radians 
 %     eyePhi(j) = atan2(yPnts(1)-yPnts(2),xPnts(1)-xPnts(2));
-    eyePhi(j) = atan((yPnts(2)-yPnts(1))/(xPnts(1)-xPnts(2)));
+%     eyePhi(j) = atan2((yPnts(j,2)-yPnts(j,1)),(xPnts(j,1)-xPnts(j,2)));
 
     % compute eye orientation (w.r.t. body axis) in radians 
-    eyePhiL(j) = atan((yPntsL(2)-yPntsL(1))/(xPntsL(1)-xPntsL(2)));
+    eyePhiL(j) = atan((yPntsL(j,2)-yPntsL(j,1))/(xPntsL(j,1)-xPntsL(j,2)));
     
+    %------------------------------- SANITY CHECK #2 --------------------%
     
-%     % bring figure with original image to front
-%     figure(figOrig);
-%     
-%     % draw line between points
-%     line(xPnts,yPnts,'color','c','LineWidth',2);
+    if false
+        % bring figure with original image to front
+        figure(figOrig);
+        
+        % draw line between points
+        line(xPnts(j,:),yPnts(j,:),'LineWidth',2);
+        
+        % include text of eye angle
+        text(blob.xEye(1,j),blob.yEye(1,j),num2str(eyePhiL(j)*180/pi),...
+            'FontSize',12,'Color','r');
+        
+        pause
+    end
     
 %     plot(axs2,xBoundary,yBoundary,'m')
 end
@@ -713,7 +738,7 @@ eye.yPntsL = yPntsL;
 % store eye orientation (first element is right eye)
 eye.Phi = eyePhi;
 
-% store eye orientation (first element is right eye)
+% store eye orientation (first element is right eye), local FOR
 eye.PhiL = eyePhiL;
 
 % store rotation matrix
@@ -724,6 +749,8 @@ eye.origin = originNew;
 
 % store threshold value used
 eye.tVal = tVal;
+
+
 
 
 % function [imBW,imBWsmall] = giveBlobs(imBlob)

@@ -51,13 +51,35 @@ if strcmp(action,'prelim')
             % Store frame number
             bStats.frame(k,1) = B(i).fr_num;
             
+            % NOTE: changed order of y-coords for correct angle)
             % Store angle
-            bStats.angl(k,1) = atan2(blob.yMid(1)-blob.yMid(2),...
+            bStats.angl(k,1) = atan2(blob.yMid(2)-blob.yMid(1),...
                                      blob.xMid(1)-blob.xMid(2));
             
             % Store distance btwn rostrum and tail
             bStats.bSpan(k,1) = hypot(blob.yMid(1)-blob.yMid(end),...
                                       blob.xMid(1)-blob.xMid(end));
+                                  
+            % Store right eye orientation (relative to body axis)
+            bStats.ReyeAngl(k,1) = eye.PhiL(1);
+            
+            % Store left eye orientation (relative to body axis)
+            bStats.LeyeAngl(k,1) = eye.PhiL(2);
+            
+            % Store right eye orientation (relative to inertial FOR)
+            bStats.thetaR(k,1) = eye.thetaR;
+       
+            % Store left eye orientation (relative to inertial FOR)
+            bStats.thetaL(k,1) = eye.thetaL;
+            
+            % store angle of rotation (from rotation matrix)
+            bStats.anglRot(k,1) = asin(eye.R(1,2));
+            
+            % Store body axis angle (alternative calculation)
+%             bStats.anglBody(k,1) = atan2(eye.xEye(1)-eye.xEye(2),...
+%                                      eye.yEye(1)-eye.yEye(2));
+                
+                      
             
 %             % Store coordinate data
 %             B(i).sMid       = blob.sMid;
@@ -177,6 +199,7 @@ function D = calcBlobStats(blob,p)
     
 % Unwrap data
 D.angl = unwrap(D.angl);
+
 
 
 

@@ -3,7 +3,8 @@ function eyeBlobs = findEyes(imPath)
 close all
 
 if nargin < 1
-imPath = '/Volumes/Backup/ZF_visuomotor/Raw video/2015-11-16-COPY/S01';
+% imPath = '/Volumes/Backup/ZF_visuomotor/Raw video/2015-11-16/S01';
+imPath = '/Volumes/VisualPred/ZF_visuomotor/Raw video/2015-11-16/S01';
 imPath = [imPath filesep 'exp01_0006.jpg'];
 end
 
@@ -40,7 +41,7 @@ delete(h), close all;
 maskEyes = roipoly(imA,roi.x,roi.y);
 
 % set intial threshold value (will be divided by 255 later)
-tVal = 70;
+tVal = 74;
 % TO DO: figure out better way to find the threshold value
 
 % set the stepsize for decreasing tVal
@@ -67,7 +68,7 @@ while blobNum && thresh
     % find connected components in binary image within ROI
     cc = bwconncomp(imBW2);
     
-    ccProps = regionprops(cc,'Area');
+    ccProps = regionprops(cc,'Area','Orientation');
     
     % if there are only two objects ...
     if cc.NumObjects==2 && (abs(ccProps(1).Area-ccProps(2).Area))<45

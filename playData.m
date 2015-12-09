@@ -27,27 +27,27 @@ if nargin < 1
     %         error('This computer is not recognized')
     %     end
     
-    % Alberto's MacMini
-    % path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
-    %
-    % if ~isempty(dir([filesep path]))
-    %     % Directory root
-    %     root     = '/Users/alberto/Dropbox/Alberto/predator';
-    %     vid_root = '/Users/alberto/Dropbox/Alberto/predator';
-    % else
-    %     error('This computer is not recognized')
-    % end
+% % % Alberto's MacMini
+path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+
+if ~isempty(dir([filesep path]))
+    % Directory root
+    root     = '/Volumes/VisualPred/ZF_visuomotor';
+    vid_root = '/Volumes/VisualPred/ZF_visuomotor';
+else
+    error('This computer is not recognized')
+end
     
-    % Alberto's MacBook
-    path = fullfile('Users','A_Soto','Documents','Home');
-    
-    if ~isempty(dir([filesep path]))
-        % Directory root
-        root     = '/Volumes/Backup/ZF_visuomotor';
-        vid_root = '/Volumes/Backup/ZF_visuomotor';
-    else
-        error('This computer is not recognized')
-    end
+%     % Alberto's MacBook
+%     path = fullfile('Users','A_Soto','Documents','Home');
+%     
+%     if ~isempty(dir([filesep path]))
+%         % Directory root
+%         root     = '/Volumes/Backup/ZF_visuomotor';
+%         vid_root = '/Volumes/Backup/ZF_visuomotor';
+%     else
+%         error('This computer is not recognized')
+%     end
     
     % To raw video files
     paths.rawvid = [vid_root filesep 'Raw video'];
