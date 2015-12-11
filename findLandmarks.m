@@ -606,6 +606,9 @@ eye.thetaL = anglL;
 % body midline angle w.r.t. global x-axis (alternative calculation)
 eye.anglBody = atan2(eye.xEye(1)-eye.xEye(2),eye.yEye(1)-eye.yEye(2));
 
+% slope of line defining body midline
+m1 = (eye.xEye(1)-eye.xEye(2))/(eye.yEye(1)-eye.yEye(2));
+
 %------------------------- Sanity Check ---------------------------------%
 if sane
     close all
@@ -693,11 +696,14 @@ for j=1:length(eyeBound)
     eyePhiL(j) = atan((yPntsL(j,2)-yPntsL(j,1))/(xPntsL(j,1)-xPntsL(j,2)));
     
     % compute eye orientation (w.r.t. global x-axis) in radians 
-    eyePhi(j) = atan((yPnts(j,2)-yPnts(j,1))/(xPnts(j,1)-xPnts(j,2)));
+%     eyePhi(j) = atan((yPnts(j,2)-yPnts(j,1))/(xPnts(j,1)-xPnts(j,2)));
+
+    % slope of line defining eye orientation (global coordinates)
+    m2 = (yPnts(j,2)-yPnts(j,1))/(xPnts(j,1)-xPnts(j,2));
     
     % alternative eye orientation calculation
-    eyePhiL_alt(j) = abs(eye.anglBody - eyePhi(j));
-    
+%     eyePhiL_alt(j) = abs(eye.anglBody - eyePhi(j));
+    eyePhiL_alt(j) = atan((m1-m2)/(1+m1*m2));
     
     %------------------------------- SANITY CHECK #2 --------------------%
     
