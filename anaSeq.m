@@ -66,18 +66,23 @@ if strcmp(action,'prelim')
             % Store left eye orientation (relative to body axis)
             bStats.LeyeAngl(k,1) = eye.PhiL(2);
             
-            % Store right eye orientation (relative to inertial FOR)
+            % Store right ALT eye orientation (relative to body axis)
+            bStats.ReyeAngl_alt(k,1) = eye.PhiL_alt(1);
+            
+            % Store left ALT eye orientation (relative to body axis)
+            bStats.LeyeAngl_alt(k,1) = eye.PhiL_alt(2);
+            
+            % Store right eye orientation (relative to global FOR)
             bStats.thetaR(k,1) = eye.thetaR;
        
-            % Store left eye orientation (relative to inertial FOR)
+            % Store left eye orientation (relative to global FOR)
             bStats.thetaL(k,1) = eye.thetaL;
             
             % store angle of rotation (from rotation matrix)
             bStats.anglRot(k,1) = asin(eye.R(1,2));
             
             % Store body axis angle (alternative calculation)
-%             bStats.anglBody(k,1) = atan2(eye.xEye(1)-eye.xEye(2),...
-%                                      eye.yEye(1)-eye.yEye(2));
+            bStats.anglBody(k,1) = eye.anglBody;
                 
                       
             

@@ -427,6 +427,10 @@ end
 
 %% Find Eyes & Eye orientation
 
+% indicator for debugging plots
+sane = 1;
+
+
 % Redefine rotation matrix for local coord system with new points
 R = local_system(originNew,rostNew);
 
@@ -481,7 +485,7 @@ im = imcrop(im,blob.roi_blob);
 maskEyes = roipoly(im,roiG.x,roiG.y);
 
 % set initial threshold value
-tVal = 73;
+tVal = 75;
 
 % set the stepsize for decreasing tVal
 tStep = 2;
@@ -508,7 +512,9 @@ while blobNum && thresh
     % find connected components in binary image within ROI
     cc = bwconncomp(imBW2);
     
+    % get size of blobs
     ccProps = regionprops(cc,'Area');
+    
     
     % if there are only two objects & their area is similar ...
     if cc.NumObjects==2 && (abs(ccProps(1).Area-ccProps(2).Area))<45
@@ -525,7 +531,7 @@ while blobNum && thresh
     
     % check that threshold value doesn't get too low
     if tVal < 55
-        % set threshold indicator
+        % set threshold indicator to exit loop
         thresh = 0;
     end
         
@@ -593,12 +599,15 @@ blob.yEye = [yEyeR yEyeL];
 eye.xEye = [xEyeR xEyeL];
 eye.yEye = [yEyeR yEyeL];
 
-% store eye orientation
+% store eye orientation (from ellipse fit)
 eye.thetaR = anglR;
 eye.thetaL = anglL; 
 
+% body midline angle w.r.t. global x-axis (alternative calculation)
+eye.anglBody = atan2(eye.xEye(1)-eye.xEye(2),eye.yEye(1)-eye.yEye(2));
+
 %------------------------- Sanity Check ---------------------------------%
-if false
+if sane
     close all
     
     figOrig = figure;
@@ -636,6 +645,9 @@ eyePhi = zeros(1,2);
 % preallocate eye orientation vector (local FOR)
 eyePhiL = zeros(1,2);
 
+% preallocate eye orientation vector (local FOR, alternative calc.)
+eyePhiL_alt = zeros(1,2);
+
 % find object boundaries (points along the perimeter of eye blobs) 
 eyeBound = bwboundaries(imBW2,'noholes'); 
 
@@ -672,20 +684,24 @@ for j=1:length(eyeBound)
     xPntsL(j,:) = tmp_xPntsL';
     
     yPntsL(j,:) = tmp_yPntsL';
+  
     
     % NOTE: need to change order of difference in y-vals for correct
     % eye orientation angle
     
-    % compute eye orientation (w.r.t. global x-axis) in radians 
-%     eyePhi(j) = atan2(yPnts(1)-yPnts(2),xPnts(1)-xPnts(2));
-%     eyePhi(j) = atan2((yPnts(j,2)-yPnts(j,1)),(xPnts(j,1)-xPnts(j,2)));
-
-    % compute eye orientation (w.r.t. body axis) in radians 
+    % compute eye orientation (w.r.t. body axis) in radians
     eyePhiL(j) = atan((yPntsL(j,2)-yPntsL(j,1))/(xPntsL(j,1)-xPntsL(j,2)));
+    
+    % compute eye orientation (w.r.t. global x-axis) in radians 
+    eyePhi(j) = atan((yPnts(j,2)-yPnts(j,1))/(xPnts(j,1)-xPnts(j,2)));
+    
+    % alternative eye orientation calculation
+    eyePhiL_alt(j) = abs(eye.anglBody - eyePhi(j));
+    
     
     %------------------------------- SANITY CHECK #2 --------------------%
     
-    if false
+    if sane
         % bring figure with original image to front
         figure(figOrig);
         
@@ -693,8 +709,8 @@ for j=1:length(eyeBound)
         line(xPnts(j,:),yPnts(j,:),'LineWidth',2);
         
         % include text of eye angle
-        text(blob.xEye(1,j),blob.yEye(1,j),num2str(eyePhiL(j)*180/pi),...
-            'FontSize',12,'Color','r');
+        text(blob.xEye(1,j),blob.yEye(1,j),...
+            num2str(eyePhiL_alt(j)*180/pi),'FontSize',12,'Color','r');
         
         pause
     end
@@ -719,6 +735,9 @@ else
     
     % flip order of eyePhiL
     eyePhiL = flip(eyePhiL);
+    
+    % flip order of eyePhiL_alt
+    eyePhiL_alt = flip(eyePhiL_alt);
 end
 
 % store original (cropped) image
@@ -740,6 +759,9 @@ eye.Phi = eyePhi;
 
 % store eye orientation (first element is right eye), local FOR
 eye.PhiL = eyePhiL;
+
+% store alternate eye orientation (first element is right eye), local FOR
+eye.PhiL_alt = eyePhiL_alt;
 
 % store rotation matrix
 eye.R = R;
