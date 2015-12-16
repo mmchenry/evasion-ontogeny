@@ -428,7 +428,7 @@ end
 %% Find Eyes & Eye orientation
 
 % indicator for debugging plots
-sane = 1;
+sane = 0;
 
 
 % Redefine rotation matrix for local coord system with new points
@@ -485,7 +485,7 @@ im = imcrop(im,blob.roi_blob);
 maskEyes = roipoly(im,roiG.x,roiG.y);
 
 % set initial threshold value
-tVal = 75;
+tVal = 74;
 
 % set the stepsize for decreasing tVal
 tStep = 2;
@@ -607,7 +607,7 @@ eye.thetaL = anglL;
 eye.anglBody = atan2(eye.xEye(1)-eye.xEye(2),eye.yEye(1)-eye.yEye(2));
 
 % slope of line defining body midline
-m1 = (eye.xEye(1)-eye.xEye(2))/(eye.yEye(1)-eye.yEye(2));
+eye.m1 = (eye.xEye(1)-eye.xEye(2))/(eye.yEye(1)-eye.yEye(2));
 
 %------------------------- Sanity Check ---------------------------------%
 if sane
@@ -703,7 +703,7 @@ for j=1:length(eyeBound)
     
     % alternative eye orientation calculation
 %     eyePhiL_alt(j) = abs(eye.anglBody - eyePhi(j));
-    eyePhiL_alt(j) = atan((m1-m2)/(1+m1*m2));
+    eyePhiL_alt(j) = atan2((eye.m1-m2),(1+eye.m1*m2));
     
     %------------------------------- SANITY CHECK #2 --------------------%
     

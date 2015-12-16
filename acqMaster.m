@@ -3,7 +3,7 @@ function acqMaster(batchName,seqName)
 
 if nargin < 2
     batchName   = '2015-11-16';
-    seqName     = 'S01';
+    seqName     = 'S03';
 end
 
 
