@@ -30,9 +30,10 @@ data1 = load([path filesep filename]);
 t       = data1.bStats.t;
 frame   = data1.bStats.frame;
 angl    = data1.bStats.angl;
-Reye    = data1.bStats.ReyeAngl;
-Leye    = data1.bStats.LeyeAngl;
+Reye_loc  = data1.bStats.ReyeAngl;
+Leye_loc  = data1.bStats.LeyeAngl;
 m1      = data1.bStats.m1;
+anglBod = data1.bStats.anglBody;
 
 % get total number of frames
 N = length(frame);
@@ -44,7 +45,7 @@ N = length(frame);
 data2 = load([path filesep filename]);
 
 % rename variables
-frame_num   = data2.frame_num;
+frame_num   = data2.frame;
 x1_left     = data2.x1_left;
 x1_right    = data2.x1_right;
 x2_left     = data2.x2_left;
@@ -69,13 +70,13 @@ if turns
     
     % compute average angles for first interval
     S.Angl(1) = mean(angl(1:idxStart(1)))*180/pi;
-    S.Reye(1) = mean(Reye(1:idxStart(1)))*180/pi;
-    S.Leye(1) = mean(Leye(1:idxStart(1)))*180/pi;
+    S.Reye(1) = mean(Reye_loc(1:idxStart(1)))*180/pi;
+    S.Leye(1) = mean(Leye_loc(1:idxStart(1)))*180/pi;
     
     % compute average angle for last interval
     S.Angl(numTurn/2+1) = mean(angl(idxStart(numTurn):N))*180/pi;
-    S.Reye(numTurn/2+1) = mean(Reye(idxStart(numTurn):N))*180/pi;
-    S.Leye(numTurn/2+1) = mean(Leye(idxStart(numTurn):N))*180/pi;
+    S.Reye(numTurn/2+1) = mean(Reye_loc(idxStart(numTurn):N))*180/pi;
+    S.Leye(numTurn/2+1) = mean(Leye_loc(idxStart(numTurn):N))*180/pi;
     
     for k = 1:(numTurn/2-1)
         
@@ -83,8 +84,8 @@ if turns
         S.Angl(k+1) = mean(angl(idxStart(2*k):idxStart(2*k+1)))*180/pi;
         
         % compute average EYE ANGLES during interval k
-        S.Reye(k+1) = mean(Reye(idxStart(2*k):idxStart(2*k+1)))*180/pi;
-        S.Leye(k+1) = mean(Leye(idxStart(2*k):idxStart(2*k+1)))*180/pi;
+        S.Reye(k+1) = mean(Reye_loc(idxStart(2*k):idxStart(2*k+1)))*180/pi;
+        S.Leye(k+1) = mean(Leye_loc(idxStart(2*k):idxStart(2*k+1)))*180/pi;
         
     end
 else
@@ -93,21 +94,49 @@ end
 
 %% compute and plot angles
 
-% compute slope defining eye angles
-m_right = (y2_right-y1_right)./(x2_right-x1_right);
-m_left = (y2_left-y1_left)./(x2_left-x1_left);
+% change in y (to compute arctan)
+y_right = (y2_right-y1_right);
+y_left  = (y2_left-y1_left);
 
-% find common frame number values
+% change in x (to compute arctan)
+x_right = (x2_right-x1_right);
+x_left  = (x2_left-x1_left);
+
+% right eye angles (world coordinates)
+Reye_w = unwrap(atan2(y_right,x_right));
+
+% left eye angles (world coordinates)
+Leye_w = unwrap(atan2(y_left,x_left));
+
+% find common frame number values between digitized & autotracking
 [~,ia,ib] = intersect(frame,frame_num,'stable');
 
-% extract values corresponding to indices 'ia'
+% extract autotracking values corresponding to indices 'ia'
 frameNew    = frame(ia);
 anglNew     = angl(ia);
 m1New       = m1(ia);
+anglBodNew  = anglBod(ia);
 
-% extract values corresponding to indices 'ib'
-m_right = m_right(ib);
-m_left  = m_left(ib);
+% extract digitized values corresponding to indices 'ib'
+Reye_w  = Reye_w(ib);
+Leye_w  = Leye_w(ib);
+
+% smooth heading angles
+angl_smooth = smooth(anglNew);
+
+% plot smooth heading angles
+plot(frameNew,angl_smooth*180/pi,'.','MarkerSize',10)
+hold on;
+
+% plot eye orienation in world coordinates
+plot(frameNew,(Reye_w)*180/pi,'.','MarkerSize',10)
+plot(frameNew,(Leye_w)*180/pi,'.','MarkerSize',10)
+
+% plot eye orientation in local coordinates
+plot(frameNew,(Reye_w - angl_smooth)*180/pi,'.','MarkerSize',10)
+plot(frameNew,(Leye_w - angl_smooth)*180/pi,'.','MarkerSize',10)
+
+Pi = pi;
 
 
 
