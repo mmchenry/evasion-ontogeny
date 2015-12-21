@@ -81,6 +81,7 @@ paths.thumb  = [root filesep 'Thumbnail video'];
 % To calibration files
 paths.cal = [root filesep 'Calibrations'];
 
+
 %% Query about mode
 
 if nargin<1

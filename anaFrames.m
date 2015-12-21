@@ -1,4 +1,4 @@
-function motion = anaFrames(action,dPath,vPath,tPath,cPath,p,roi,...
+function anaFrames(dPath,vPath,tPath,cPath,p,roi,...
                             includeCalibration,skipFrame,startFrame,endFrame)
 % Steps thru frames, creates a thumbnail image and then extracts the
 % midline and eye positions
@@ -84,26 +84,12 @@ end
 frames = startFrame:(1+skipFrame):endFrame;
 
 
-%% Analyze mean image for motion
+%% Make Mean image
 
-% Get mean image
-[imMin,imMean] = makeMeanImage(dPath,vPath,cal,B);
+imMean = makeMeanImage(dPath,vPath,cal,B);
 
-blobMin = findBlobs(imMin,imMean,roi);
-propsMin = regionprops(blobMin.BW,'Area');
 
-if propsMin.Area < p.minBlobArea    
-    motion = 0;
-    disp('Fish did not move during the recording')
-    return
-else 
-    motion = 1;
-end
-
-clear blobMin propsMin imMin
-    
-
-%% Initialize execution
+%% Loop thru frames sequentially, finding the body midline
 
 % Update status
 disp('      Analyzing frames . . .')
@@ -111,113 +97,96 @@ disp('      Analyzing frames . . .')
 % Start timer
 tstart = tic;
 
+% Check for consecutive numbers
+if max(diff(frames)~=1)
+    error('Frame numbers not consecutive');
+end
 
-%% Loop thru frames in parallel
+% Use a placeholder for initial iteration
+blob = nan;
+pBlob = blob;
 
-% Step though frames (Parallel for preliminary run)
-if strcmp(action,'parallel')
-    
-    % Set up parallel pool (2 cores)
-    %parpool(2)
-    
-    % Set up log directory
-    if isempty(dir([dPath filesep 'log']))
-        mkdir([dPath filesep 'log'])
-    else
-        delete([dPath filesep 'log' filesep '*']);
-    end
+% Use a placeholder for initial iteration
+eye = nan;
 
-    % Loop thru frames in parallel
-    parfor i =  1:length(frames); 
-    %for i =  1:length(frames); 
+% If not all frames analyzed . . .
+if length(dir([tPath filesep '*.mat']))<length(frames)
+    % Loop thru frames
+    for i =  1:length(frames)
+        %warning('TODO: reset starting frame to "1"')
         
         % Current frame
         cFrame = frames(i);
-
-        % Run analysis code
-        blob = ana_frame(action,cFrame,frames,tPath,vPath,dPath,B,p,...
-                         cal,roi,imMean);
         
-        % If it failed . . .            
-        if isnan(blob.xMid(1))
-             % Log result
-            lg = setLog(0);
-        else
-             % Log result
-            lg = setLog(1);
+        
+        % Read frame
+        [im,~] = imread([vPath filesep B(cFrame).filename]);
+        
+        if ~isempty(cal)
+            % Apply calibration to undistort image
+            im = undistortImage(im, cal.cameraParams,'OutputView','full');
         end
         
-        % Write to log (to track progress)
-        writeFile([dPath filesep 'log' filesep B(cFrame).filename(1:end-4)],lg);
+        % Find blobs that define the fish in frame
+        blob = findBlobs(im,imMean,roi);
         
-        % Look at log
-        aaa = dir([dPath filesep 'log']);
+        % If blob is not a nan . . .
+        if ~isnan(blob.im(1))
+            
+            % Attempt to find landmarks
+            try
+                % Code that finds landmarks
+                blob = findMidline(p,blob,pBlob,im);
+                
+                % If error above . . .
+            catch
+                % Write data
+                blob.xMid = nan;
+                
+            end
+            
+            if 0
+                %figure
+                imshow(blob.im,[],'InitialMagnification','fit')
+                hold on
+                plot(blob.xMid,blob.yMid,'go-')
+                hold off
+                %     pause
+            end
+            
+            % Visualize frame for debugging (switch "parfor" loop to "for")
+            % (Must be commented if using parfor)
+            %     visData(blob,im,['Frame ' num2str(cFrame)])
+            
+            % Store time
+            mid.t(i,1) = i./p.framerate;
+            
+            % Store coordinates
+            if ~isnan(blob.xMid)
+                % Store away data in global FOR
+                mid.xRost(i,1)  = blob.xMid(1) + blob.roi_blob(1);
+                mid.yRost(i,1)  = blob.yMid(1) + blob.roi_blob(2);
+                mid.xHead(i,1)  = blob.xMid(2) + blob.roi_blob(1);
+                mid.yHead(i,1)  = blob.yMid(2) + blob.roi_blob(2);
+            else
+                mid.xRost(i,1)  = nan;
+                mid.yRost(i,1)  = nan;
+                mid.xHead(i,1)  = nan;
+                mid.yHead(i,1)  = nan;
+            end
+        end
+        
+        % Store current blob for next iteration
+        pBlob = blob;
+        
+        % Run analysis code
+        %blob = ana_frame(action,cFrame,frames,tPath,vPath,dPath,B,p,...
+        %    cal,roi,imMean,blob);
         
         % Update status
-        if reportStatus
-            if ~isnan(blob.xMid(1))
-                disp(['           Frame succeeded :)  ' ...
-                    num2str(floor(100*length(aaa)/length(frames))) ...
-                    '% of blob analysis completed'])
-            else
-                disp(['           Frame failed :(  ' ...
-                    num2str(floor(100*length(aaa)/length(frames))) ...
-                    '% of blob analysis completed'])
-            end
-        end
-
-    end
-    
-    % Remove log files and directory
-    if ~isempty(dir([dPath filesep 'log']))
-        pause(0.1)
-        delete([dPath filesep 'log' filesep '*']);
-        rmdir([dPath filesep 'log']);
-    end
-end  
- 
-
-%% Loop thru frames sequentially
-
-% Run, not parallel, for fast start
-if strcmp(action,'sequential')
-    
-    % Check for consecutive numbers
-    if max(diff(frames)~=1)
-        error('Frame numbers not consecutive');
-    end
-    
-    % Use a placeholder for initial iteration
-    blob = nan;
-    
-    % Use a placeholder for initial iteration
-    eye = nan;
-    
-    % Loop thru frames
-    for i =  1:length(frames); 
+        disp(['          Midline done for ' num2str(i) ' of ' ...
+            num2str(length(frames))])
         
-        % Current frame
-        cFrame = frames(i);
-        
-        % Run analysis code
-        blob = ana_frame(action,cFrame,frames,tPath,vPath,dPath,B,p,...
-                         cal,roi,imMean,blob);
-        
-        % Look at log
-        aaa = dir([dPath filesep 'log']);
-        
-        % Update status        
-        if reportStatus
-            if ~isnan(blob.xMid(1))
-                disp(['           Frame succeeded :)  ' ...
-                    num2str(round(100*i/length(frames))) ...
-                    '% of blob analysis completed'])
-            else
-                disp(['           Frame failed :(  ' ...
-                    num2str(round(100*i/length(frames))) ...
-                    '% of blob analysis completed'])
-            end
-        end   
     end
 end
 
@@ -231,65 +200,79 @@ disp(['     . . . completed in ' num2str(telap) ' min'])
 % Save data 'B'
 save([dPath filesep 'blob data.mat'],'B')
 
-function blob = ana_frame(action,cFrame,frames,tPath,vPath,...
-                          dPath,B,p,cal,roi,imMean,pBlob)
+% Save data 'mid'
+save([dPath filesep 'midline data.mat'],'mid')
 
-% Set default
-if (nargin < 9) 
-    pBlob = nan;
-end
-
-% Read frame
-% [im,cmap] = readFrame(vPath,B,cFrame);
-[im,~] = imread([vPath filesep B(cFrame).filename]);
-
-if ~isempty(cal)    
-    % Apply calibration to undistort image
-    im = undistortImage(im, cal.cameraParams,'OutputView','full');
-end
-
-% Find blobs that define the fish in frame
-blob = findBlobs(im,imMean,roi);
-
-% If blob is not a nan . . .
-if ~isnan(blob.im(1))
-    
-    % Attempt to find landmarks
-    try
-        % If looking at fast start (beyond first frame) . . .
-        if strcmp(action,'sequential') && (cFrame>frames(1))
-            
-            % Code that finds landmarks
-            [blob,eye] = findLandmarks(blob,pBlob,im);
-            
-        % Otherwise . . .
-        else
-            % Code that finds landmarks
-            [blob,eye] = findLandmarks(blob,pBlob,im);
-        end
-
-        
-    % If error above . . .
-    catch   
-        
-        % Write data
-        blob.xMid = nan;
-        
-        eye.Phi = [nan nan];
-        
-    end
-    
-    % Visualize frame for debugging (switch "parfor" loop to "for")
-    % (Must be commented if using parfor)
-%     visData(blob,im,['Frame ' num2str(cFrame)])
-
-    % Save blob data
-    saveBlob(tPath,blob,B(cFrame).filename)
-    
-    % Save eye data (append to file in Thumbnail video folder)
-    saveEyes(tPath,eye,B(cFrame).filename)
-    
-end
+% 
+% 
+% function blob = ana_frame(action,cFrame,frames,tPath,vPath,...
+%                           dPath,B,p,cal,roi,imMean,pBlob)
+% 
+% % Set default
+% if (nargin < 9) 
+%     pBlob = nan;
+% end
+% 
+% % Read frame
+% % [im,cmap] = readFrame(vPath,B,cFrame);
+% [im,~] = imread([vPath filesep B(cFrame).filename]);
+% 
+% if ~isempty(cal)    
+%     % Apply calibration to undistort image
+%     im = undistortImage(im, cal.cameraParams,'OutputView','full');
+% end
+% 
+% % Find blobs that define the fish in frame
+% blob = findBlobs(im,imMean,roi);
+% 
+% % If blob is not a nan . . .
+% if ~isnan(blob.im(1))
+%     
+%     % Attempt to find landmarks
+%     try
+%         % If looking at fast start (beyond first frame) . . .
+%         if strcmp(action,'sequential') && (cFrame>frames(1))
+%             
+%             % Code that finds landmarks
+%             blob = findLandmarks(blob,pBlob,im);
+%             
+%         % Otherwise . . .
+%         else
+%             % Code that finds landmarks
+%             blob = findLandmarks(blob,pBlob,im);
+%         end
+% 
+%         
+%     % If error above . . .
+%     catch   
+%         
+%         % Write data
+%         blob.xMid = nan;
+%         
+%         eye.Phi = [nan nan];
+%         
+%     end
+%     
+%     if 0
+%         %figure
+%         imshow(blob.im,[],'InitialMagnification','fit')
+%         hold on
+%         plot(blob.xMid,blob.yMid,'go-')
+%         hold off
+%         %     pause
+%     end
+%     
+%     % Visualize frame for debugging (switch "parfor" loop to "for")
+%     % (Must be commented if using parfor)
+% %     visData(blob,im,['Frame ' num2str(cFrame)])
+% 
+%     % Save blob data
+%     saveBlob(tPath,blob,B(cFrame).filename)
+%     
+%     % Save eye data (append to file in Thumbnail video folder)
+%     %saveEyes(tPath,eye,B(cFrame).filename)
+%     
+% end
 
 
 function B = setB(B,Bc,Btmp,cFrame)     

@@ -58,26 +58,25 @@ loopDur = 2;
 %% Path definitions
 
 % % Matt's computer
-% if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
-%     % Directory root
-%     %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
-%     root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-%     vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-%     
-% else
-%     error('This computer is not recognized')
-% end
-
-% % % Alberto's MacMini
-path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
-
-if ~isempty(dir([filesep path]))
+if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
     % Directory root
-    root     = '/Volumes/VisualPred/ZF_visuomotor';
-    vid_root = '/Volumes/VisualPred/ZF_visuomotor';
+    %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
+    root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
+    
 else
-    error('This computer is not recognized')
+     % % % Alberto's MacMini
+    path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
+    
+    if ~isempty(dir([filesep path]))
+        % Directory root
+        root     = '/Volumes/VisualPred/ZF_visuomotor';
+        vid_root = '/Volumes/VisualPred/ZF_visuomotor';
+    else
+        error('This computer is not recognized')
+    end
 end
+
 
 % % % Alberto's MacBook
 % path = fullfile('Users','A_Soto','Documents','Home');
@@ -89,8 +88,6 @@ end
 % else
 %     error('This computer is not recognized')
 % end
-
-
 
 % To raw video files 
 paths.rawvid = [vid_root filesep 'Raw video'];
@@ -341,11 +338,21 @@ end
 disp(' '); disp(' ')
 disp(['---------- Analyzing ' expName ' in ' batchName ' ----------'])
 
-% Analyze for midlines
-motion = anaFrames('sequential',dPath,vPath,tPath,cPath,p,roi,includeCalibration);
+if isempty(dir([dPath filesep 'midline data.mat']))
+    % Analyze for midlines
+    anaFrames(dPath,vPath,tPath,cPath,p,roi,includeCalibration);
+
+    disp(['---------- Midlines analyzed for ' expName ' in ' batchName ' ----------'])
+else
+    disp('            Loading midline data')
+end
+
+% Analyze eyes
+anaEyes(dPath,vPath)
+
 
 % Analyze sequence data
-bStats = anaSeq('prelim',dPath,tPath,cPath,p);
+%bStats = anaSeq('prelim',dPath,tPath,cPath,p);
 
 % Save parameters ('p')
 save([dPath filesep 'parameters'],'p')

@@ -1,4 +1,4 @@
-function [imMin,imMean] = makeMeanImage(dPath,vPath,cal,B)
+function imMean = makeMeanImage(dPath,vPath,cal,B)
 
 
 %% Parameters
@@ -105,17 +105,15 @@ if isempty(a2)
     imwrite(imMean,[dPath filesep 'meanImage.tif'],'tif','Compression','none');
         
     % Write min image to movie dir
-    imwrite(imMin,[dPath filesep 'minImage.tif'],'tif','Compression','none');
+    %imwrite(imMin,[dPath filesep 'minImage.tif'],'tif','Compression','none');
     
     % Close status bar
     close(h,'force')
-    
-    clear frIdx h i imSum imCurr
  
 % Load images, if present
 else
     imMean = imread([dPath filesep 'meanImage.tif']);  
-    imMin  = imread([dPath filesep 'minImage.tif']); 
+
 end
 
 

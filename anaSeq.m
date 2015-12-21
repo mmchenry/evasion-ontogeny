@@ -84,8 +84,7 @@ if strcmp(action,'prelim')
             % Store body axis angle (alternative calculation)
             bStats.anglBody(k,1) = eye.anglBody;
                 
-            % Store slope of line defining body axis
-            bStats.m1(k,1) = eye.m1;
+                      
             
 %             % Store coordinate data
 %             B(i).sMid       = blob.sMid;
