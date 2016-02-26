@@ -1,6 +1,10 @@
-function anaEyes(dPath,vPath)
+function anaEyes(dPath,vPath, startFrame)
 
+% indicator to visualize process
 showAna = 1;
+
+% indicator for reanalyzing eyes 
+redoEyes = 1;
 
 % Tolerance for spline fits
 tol.head = 1e2;
@@ -8,6 +12,11 @@ tol.rost = 0.5e1;
 
 % Target number of pixels for eye area
 eye_area = 100;
+
+% Set startFrame
+if nargin < 3
+    startFrame = 1;
+end
 
 
 %% Load data
@@ -18,8 +27,11 @@ load([dPath filesep 'blob data.mat'])
 % Load midline data
 load([dPath filesep 'Midline data.mat'])
 
-% List of frame files
-a = dir([vPath filesep '*.jpg']);
+% % List of frame files
+% a = dir([vPath filesep '*.jpg']);
+
+% Alternate to load filenames (use when 'ghost' files present) 
+a = dir([vPath filesep 'exp*']);
 
 % Defaults for right eye
 pEye.R.xCent = 23;
@@ -73,9 +85,9 @@ cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
 
 %% Acquire the eye mask
 
-if isempty(dir([dPath filesep 'eye data.mat']))   
+if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     
-    startFrame = 1;
+%     startFrame = 150;
     
     % Interval for resetting reference frame
     frameResetIntrvl = 100;
@@ -84,7 +96,7 @@ if isempty(dir([dPath filesep 'eye data.mat']))
     eye_area = 100;
     
     % Origin for head FOR in local system
-    roi.xL          = -.3*cran_len;
+    roi.xL          = -0.3*cran_len;
     roi.yL          = -1.1*cran_len;
     roi.w           = 2.2*cran_len;
     roi.h           = 2.2*cran_len;
@@ -113,8 +125,9 @@ if isempty(dir([dPath filesep 'eye data.mat']))
     hold on
     plot(x(1),y(1),'+r',x,y,'r-')
     
-    % Initial right eye angle
-    rAng0 = atan2(y(2)-y(1),x(2)-x(1));
+    % Initial right eye angle (relative to body axis)
+    % switched sign on y-coord 
+    rAng0 = atan2(-(y(2)-y(1)),x(2)-x(1));
     
     title('Left eye: select anterior, then posterior margin')
     [x,y,b] = ginput(2);
@@ -122,8 +135,9 @@ if isempty(dir([dPath filesep 'eye data.mat']))
     pause(2)
     close(f)
     
-    % Initial left eye angle
-    lAng0 = atan2(y(2)-y(1),x(2)-x(1));
+    % Initial left eye angle (relative to body axis)
+    % switched sign on y-coord
+    lAng0 = atan2(-(y(2)-y(1)),x(2)-x(1));
     
     clear tform tform1 x y b
     
@@ -167,14 +181,14 @@ if isempty(dir([dPath filesep 'eye data.mat']))
         % Origin in global FOR
         [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
         
-        % Head image
+        % Head image (cropped and aligned to horizontal)
         [imHead,tform1] = giveHeadIM(im,sp,roi,i);
         
 
         % Transformation object to stablize head wrt imHead0
         tform2 = imregtform(imHead,imHead0,'rigid',optimizer, metric);
          
-        % Stablize
+        % Stablize head image
         imStable = imwarp(imHead,tform2,'OutputView',imref2d(size(imHead0)));
         
         % Remove strips of black
@@ -184,7 +198,7 @@ if isempty(dir([dPath filesep 'eye data.mat']))
         eL = give_eye(imStable,pEye.L,eye_area,bk_clr,roi.rEye);
         eR = give_eye(imStable,pEye.R,eye_area,bk_clr,roi.rEye);
         
-        % Transformation object to stabalize head
+        % Transformation object to stabilize eyes
         if i == startFrame
             eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer, metric);
             eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer, metric);
@@ -195,17 +209,20 @@ if isempty(dir([dPath filesep 'eye data.mat']))
                             'InitialTransformation',pEye.L.tform);
         end
          
-        % Stablize image
-        imStableR = imwarp(pEye.R.im,eR.tform,'OutputView',...
-                           imref2d(size(pEye0.R.im)));
-        imStableL = imwarp(pEye.L.im,eL.tform,'OutputView',...
-                           imref2d(size(pEye0.L.im)));
+        % Stablize eye images
+        if showAna
+            imStableR = imwarp(pEye.R.im,eR.tform,'OutputView',...
+                imref2d(size(pEye0.R.im)));
+            imStableL = imwarp(pEye.L.im,eL.tform,'OutputView',...
+                imref2d(size(pEye0.L.im)));
+        end
              
         % Inverse of first transformation             
         tmp = invert(tform1);
 
         % Head angle, from the inverse head angle and stablization
-        eyes.hdAngle(i,1) = atan2(tmp.T(1,2),tmp.T(1,1)) + atan2(tform.T(1,2),tform2.T(1,1));
+        eyes.hdAngle(i,1) = atan2(tmp.T(1,2),tmp.T(1,1)) - pi + ...
+                            atan2(tform2.T(1,2),tform2.T(1,1));
         eyes.rAngle(i,1) = atan2(eR.tform.T(1,2),eR.tform.T(1,1)) + rAng0;
         eyes.lAngle(i,1) = atan2(eL.tform.T(1,2),eL.tform.T(1,1)) + lAng0;
         
@@ -214,8 +231,17 @@ if isempty(dir([dPath filesep 'eye data.mat']))
         pEye.L = eL;   
         
         if iReset==frameResetIntrvl
+            % reset eye data
             pEye0 = pEye;
+            
+            % reset reference head image
             imHead0 = imStable;
+            
+            % reset initial eye angles
+            rAng0 = eyes.rAngle(i,1);
+            lAng0 = eyes.lAngle(i,1);
+            
+            % reset the reset counter
             iReset = 1;
         else
             iReset = iReset + 1;
@@ -225,6 +251,7 @@ if isempty(dir([dPath filesep 'eye data.mat']))
         if 0
             % Border around ROI
             brdr = 20;
+            figure(1);
             subplot(1,2,1)
             imshow(im,'InitialMagnification','fit')
             hold on
@@ -244,6 +271,7 @@ if isempty(dir([dPath filesep 'eye data.mat']))
         end
         
         if showAna
+            figure(2);
             subplot(3,2,1);imshow(imStableR,'InitialMagnification','fit')
             subplot(3,2,3);imshow(imStable,'InitialMagnification','fit')
             hold on; plot(pEye.R.xCirc,pEye.R.yCirc,'r-',...
@@ -310,10 +338,13 @@ gazeL = (unwrap(eyes.hdAngle)+eyes.lAngle-pi/2)./pi*180;
 
 figure
 subplot(2,1,1);
-plot(eyes.t,unwrap(eyes.hdAngle-eyes.hdAngle(1))./pi*180,'-k');
+% plot(eyes.t,unwrap(eyes.hdAngle-eyes.hdAngle(1))./pi*180,'-k');
+plot(eyes.t,unwrap(eyes.hdAngle)./pi*180,'-k');
 hold on
-plot(eyes.t,gazeR-gazeR(1),'-',...
-     eyes.t,gazeL-gazeL(1),'-');
+% plot(eyes.t,gazeR-gazeR(1),'-',...
+%      eyes.t,gazeL-gazeL(1),'-');
+ plot(eyes.t,gazeR,'-',...
+     eyes.t,gazeL,'-');
 grid on;
 xlabel('Time (s)')
 ylabel('Head/Gaze angle (deg)')
@@ -372,8 +403,11 @@ end
 
 
 function [imHead2,tform1] = giveHeadIM(im,sp,roi,cFrame)
+
+% INPUTS: im = original video frame; sp = spline fitted head & rostrum data
+% OUTPUT: 'imHead2' = image of cropped and aligned head 
     
-% Get smoothed positions for head coordinate in first frame
+% Get smoothed positions for head coordinate in current frame
 head  = [sp.xHead(cFrame) sp.yHead(cFrame)];
 rost  = [sp.xRost(cFrame) sp.yRost(cFrame)];
 
@@ -389,7 +423,8 @@ tform = local_system(rost,head);
 % Redefine coord transformation (originG as origin)
 tform1 = local_system_special(rost,head,[roi.xCoordG(1) roi.yCoordG(1)]);
 
-% Initial head image
+% Initial head image 
+% (rotated and translated, rostrum near top-left, not aligned w/ horiz)
 imHead = imwarp(im,invert(tform1),'OutputView',imref2d(size(im)));
 
 pixVal = imHead(1:round(roi.h),round(roi.w));

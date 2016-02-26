@@ -2,12 +2,18 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2015-11-16';
-    seqName     = 'S03';
+    batchName   = '2016-02-18';
+    seqName     = 'S01';
 end
 
 
 %% Parameter values
+
+% indicator to redo midline tracking
+redoMidline = 0;
+
+% frame to begin analysis (useful for debugging)
+startFrame = 150;
 
 % Include calibration
 includeCalibration = 0;
@@ -53,7 +59,6 @@ waitDur = 0.5;
 
 % Duration (in s) to pause between each loop when waiting
 loopDur = 2;   
-
 
 %% Path definitions
 
@@ -332,15 +337,15 @@ if isempty(dir(dPath))
     mkdir(dPath)
 end
 
-% NOTE: got rid of if statement to make a new mean image for every sequence
 
 % Update status at command line
 disp(' '); disp(' ')
 disp(['---------- Analyzing ' expName ' in ' batchName ' ----------'])
 
-if isempty(dir([dPath filesep 'midline data.mat']))
+if isempty(dir([dPath filesep 'midline data.mat'])) || redoMidline
     % Analyze for midlines
-    anaFrames(dPath,vPath,tPath,cPath,p,roi,includeCalibration);
+    anaFrames(dPath,vPath,tPath,cPath,p,roi,includeCalibration,...
+        startFrame);
 
     disp(['---------- Midlines analyzed for ' expName ' in ' batchName ' ----------'])
 else
@@ -348,11 +353,11 @@ else
 end
 
 % Analyze eyes
-anaEyes(dPath,vPath)
+anaEyes(dPath,vPath,startFrame)
 
 
 % Analyze sequence data
-%bStats = anaSeq('prelim',dPath,tPath,cPath,p);
+% bStats = anaSeq('prelim',dPath,tPath,cPath,p);
 
 % Save parameters ('p')
 save([dPath filesep 'parameters'],'p')

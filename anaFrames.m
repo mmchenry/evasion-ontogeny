@@ -1,5 +1,5 @@
 function anaFrames(dPath,vPath,tPath,cPath,p,roi,...
-                            includeCalibration,skipFrame,startFrame,endFrame)
+                            includeCalibration,startFrame,endFrame,skipFrame)
 % Steps thru frames, creates a thumbnail image and then extracts the
 % midline and eye positions
 
@@ -58,17 +58,12 @@ else
     save([dPath filesep 'blob data.mat'],'B')
 end
 
-% Set default start and end frames
-if nargin < 11
-    endFrame = length(B);
-    if nargin < 10
-        startFrame = 1;
-    end
-end
-
-% Set default skipFrame
-if nargin < 9
+% Set default end frame and skipFrame
+if nargin < 10
     skipFrame = 0;
+    if nargin < 9
+        endFrame = length(B);
+    end
 end
 
 if includeCalibration
@@ -110,7 +105,7 @@ pBlob = blob;
 eye = nan;
 
 % If not all frames analyzed . . .
-if length(dir([tPath filesep '*.mat']))<length(frames)
+% if length(dir([tPath filesep '*.mat']))<length(frames) 
     % Loop thru frames
     for i =  1:length(frames)
         %warning('TODO: reset starting frame to "1"')
@@ -145,18 +140,18 @@ if length(dir([tPath filesep '*.mat']))<length(frames)
                 
             end
             
-            if 0
-                %figure
+            if 1
+                figure(10)
                 imshow(blob.im,[],'InitialMagnification','fit')
                 hold on
                 plot(blob.xMid,blob.yMid,'go-')
                 hold off
-                %     pause
+                pause(0.1)
             end
             
             % Visualize frame for debugging (switch "parfor" loop to "for")
             % (Must be commented if using parfor)
-            %     visData(blob,im,['Frame ' num2str(cFrame)])
+%             visData(blob,im,['Frame ' num2str(cFrame)])
             
             % Store time
             mid.t(i,1) = i./p.framerate;
@@ -188,7 +183,7 @@ if length(dir([tPath filesep '*.mat']))<length(frames)
             num2str(length(frames))])
         
     end
-end
+% end
 
 
 %% Close execution
