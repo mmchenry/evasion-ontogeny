@@ -2,7 +2,7 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-02-18';
+    batchName   = '2016-02-19';
     seqName     = 'S01';
 end
 
@@ -13,7 +13,7 @@ end
 redoMidline = 0;
 
 % frame to begin analysis (useful for debugging)
-startFrame = 150;
+startFrame = 1;
 
 % Include calibration
 includeCalibration = 0;
@@ -63,36 +63,33 @@ loopDur = 2;
 %% Path definitions
 
 % % Matt's computer
-if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')])) 
+if ~isempty(dir([filesep fullfile('Users','mmchenry','Documents','Projects')]))
+    
     % Directory root
     %root = '/Users/mmchenry/Documents/Projects/Ontogeny of evasion/Batch experiments';
     root     = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
     vid_root = '/Users/mmchenry/Dropbox/Labbies/Alberto/predator';
-    
+
+    % % Alberto's MacMini (office)
+elseif ~isempty(dir([filesep fullfile('Users','alberto','Documents','GitHub-SourceTree')]))
+    % Directory root
+    root     = '/Volumes/VisualPred/ZF_visuomotor';
+    vid_root = '/Volumes/VisualPred/ZF_visuomotor';
+        
 else
-     % % % Alberto's MacMini
-    path = fullfile('Users','alberto','Documents','GitHub-SourceTree');
-    
+    % % Alberto's MacBook (laptop)
+    path = fullfile('Users','A_Soto','Documents','Home');
     if ~isempty(dir([filesep path]))
+        
         % Directory root
-        root     = '/Volumes/VisualPred/ZF_visuomotor';
-        vid_root = '/Volumes/VisualPred/ZF_visuomotor';
+        root     = '/Volumes/BackUp/ZF_visuomotor';
+        vid_root = '/Volumes/BackUp/ZF_visuomotor';
+    
     else
         error('This computer is not recognized')
     end
+    
 end
-
-
-% % % Alberto's MacBook
-% path = fullfile('Users','A_Soto','Documents','Home');
-% 
-% if ~isempty(dir([filesep path]))
-%     % Directory root
-%     root     = '/Volumes/Backup/ZF_visuomotor';
-%     vid_root = '/Volumes/Backup/ZF_visuomotor';
-% else
-%     error('This computer is not recognized')
-% end
 
 % To raw video files 
 paths.rawvid = [vid_root filesep 'Raw video'];

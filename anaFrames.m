@@ -131,6 +131,7 @@ eye = nan;
             % Attempt to find landmarks
             try
                 % Code that finds landmarks
+
                 blob = findMidline(p,blob,pBlob,im);
                 
                 % If error above . . .
@@ -140,7 +141,7 @@ eye = nan;
                 
             end
             
-            if 1
+            if 0
                 figure(10)
                 imshow(blob.im,[],'InitialMagnification','fit')
                 hold on
@@ -156,6 +157,9 @@ eye = nan;
             % Store time
             mid.t(i,1) = i./p.framerate;
             
+            % Store predator blob roi
+            mid.roi_blob(i,:) = blob.roi_blob;
+         
             % Store coordinates
             if ~isnan(blob.xMid)
                 % Store away data in global FOR
@@ -169,8 +173,23 @@ eye = nan;
                 mid.xHead(i,1)  = nan;
                 mid.yHead(i,1)  = nan;
             end
+            
+            % Store prey coordinates
+            if blob.preyOn
+                prey.t(i,1)         = mid.t(i,1);
+                prey.xPrey(i,1)     = blob.xPrey;
+                prey.yPrey(i,1)     = blob.yPrey;
+                prey.thetaPrey(i,1) = blob.thetaPrey;
+                prey.size(i,1)      = blob.sizePrey;
+            else
+                prey.xPrey(i,1)     = nan;
+                prey.yPrey(i,1)     = nan;
+                prey.thetaPrey(i,1) = nan;
+                prey.size(i,1)      = nan;
+            end
+                
         end
-        
+  % ------ NOTE: pBlob is not used in findLandmarks        
         % Store current blob for next iteration
         pBlob = blob;
         
@@ -198,76 +217,8 @@ save([dPath filesep 'blob data.mat'],'B')
 % Save data 'mid'
 save([dPath filesep 'midline data.mat'],'mid')
 
-% 
-% 
-% function blob = ana_frame(action,cFrame,frames,tPath,vPath,...
-%                           dPath,B,p,cal,roi,imMean,pBlob)
-% 
-% % Set default
-% if (nargin < 9) 
-%     pBlob = nan;
-% end
-% 
-% % Read frame
-% % [im,cmap] = readFrame(vPath,B,cFrame);
-% [im,~] = imread([vPath filesep B(cFrame).filename]);
-% 
-% if ~isempty(cal)    
-%     % Apply calibration to undistort image
-%     im = undistortImage(im, cal.cameraParams,'OutputView','full');
-% end
-% 
-% % Find blobs that define the fish in frame
-% blob = findBlobs(im,imMean,roi);
-% 
-% % If blob is not a nan . . .
-% if ~isnan(blob.im(1))
-%     
-%     % Attempt to find landmarks
-%     try
-%         % If looking at fast start (beyond first frame) . . .
-%         if strcmp(action,'sequential') && (cFrame>frames(1))
-%             
-%             % Code that finds landmarks
-%             blob = findLandmarks(blob,pBlob,im);
-%             
-%         % Otherwise . . .
-%         else
-%             % Code that finds landmarks
-%             blob = findLandmarks(blob,pBlob,im);
-%         end
-% 
-%         
-%     % If error above . . .
-%     catch   
-%         
-%         % Write data
-%         blob.xMid = nan;
-%         
-%         eye.Phi = [nan nan];
-%         
-%     end
-%     
-%     if 0
-%         %figure
-%         imshow(blob.im,[],'InitialMagnification','fit')
-%         hold on
-%         plot(blob.xMid,blob.yMid,'go-')
-%         hold off
-%         %     pause
-%     end
-%     
-%     % Visualize frame for debugging (switch "parfor" loop to "for")
-%     % (Must be commented if using parfor)
-% %     visData(blob,im,['Frame ' num2str(cFrame)])
-% 
-%     % Save blob data
-%     saveBlob(tPath,blob,B(cFrame).filename)
-%     
-%     % Save eye data (append to file in Thumbnail video folder)
-%     %saveEyes(tPath,eye,B(cFrame).filename)
-%     
-% end
+% Save data 'prey'
+save([dPath filesep 'prey data.mat'],'prey')
 
 
 function B = setB(B,Bc,Btmp,cFrame)     
@@ -346,18 +297,15 @@ warning on
 im = imcomplement(im);
 
 % Use roi to crop image
-roiI = roipoly(im,roi.x,roi.y);
+%---------------NOTE: if using full frame, comment out roiI
+% roiI = roipoly(im,roi.x,roi.y);
 
 % Find threshold
 tVal = min([0.95 graythresh(im)+0.1]);
 
 % Threshold image
-imBW    = ~im2bw(im,tVal) & roiI;
+imBW    = ~im2bw(im,tVal); % & roiI;
 
-% % Threshold value
-% %tVal = min([0.95 graythresh(im)+0.1]);
-% %imBW    = ~im2bw(im,tVal) & roiI;
-% 
 % % Dilate im & get properties
 % se    = strel('disk',6);
 % imBW = imdilate(imBW,se);
@@ -365,18 +313,21 @@ imBW    = ~im2bw(im,tVal) & roiI;
 % LL    = bwlabel(imBW);
 % props = regionprops(LL,'Centroid','Area');
 
-% Get peripheral shapes
-By = bwboundaries(imBW,'noholes');
-
 % Image showing intersection of roi boundary & fish
-imOverlap = ~roiI & imBW;
+% imOverlap = ~roiI & imBW;
 
-% Store file info
-%pd(i).frame = p.frNums(i);
-%pd(i).filename = p.filename{i};
+% Get peripheral shapes
+% By = bwboundaries(imBW,'noholes');
+
+% Get connected components 
+% ccBlobs = bwconncomp(imBW);
+
+% Get peripheral shapes, query size and boundaries
+By2 = regionprops(imBW,'ConvexHull','ConvexArea','ConvexImage',...
+    'BoundingBox','Orientation','Centroid');
 
 % If no fish or touching a wall . . .
-if isempty(By) || (max(imOverlap(:))==1)
+if isempty(By2) %|| (max(imOverlap(:))==1)
 %     if isempty(By)
 %         % Declare warning
 %         warning(['No fish found in ' p.filename{i}]);
@@ -396,46 +347,62 @@ if isempty(By) || (max(imOverlap(:))==1)
 % If fish . . .
 else
     
-    % Select blob with greatest periphery
-    maxB = 0;
-    for j = 1:length(By)
-        if length(By{j}) > maxB
-            maxB = length(By{j});
-            perim = By{j};
-        end
+    %----NOTE----
+    % This may be a good place to use 'regionprops' instead of
+    % 'bwboundaries' to get the largest AND second largest blob 
+    
+    % Filter out small objects (<15 px) found by 'regionprops'
+    By2 = By2([By2.ConvexArea] > 15);
+    
+    % find largest object and get is bounding box
+    [~,ind2] = max([By2.ConvexArea]);
+    perim2 = By2(ind2).BoundingBox;
+    
+    % find smaller object
+    [~,ind3] = min([By2.ConvexArea]);
+    
+    % check to see if there is a prey in this frame
+    if length(By2) > 1 
+        % turn on indicator for prey
+        blob.preyOn = 1;
+        
+        % save relevent prey data
+        blob.xPrey      = By2(ind3).Centroid(1);
+        blob.yPrey      = By2(ind3).Centroid(2);
+        blob.thetaPrey  = By2(ind3).Orientation;
+        blob.sizePrey   = By2(ind3).ConvexArea;
+    else
+        % turn off indicator for prey
+        blob.preyOn = 0;
     end
     
     % Number of pixels that pad the blob
     pad_val = 10;
     
-    % Min and max range of roi
-    Croi_min = max([1 min(perim(:,2))-pad_val]);
-    Rroi_min = max([1 min(perim(:,1))-pad_val]);
-    Croi_max = min([size(im,2) max(perim(:,2)+pad_val)]);
-    Rroi_max = min([size(im,1) max(perim(:,1)+pad_val)]);
+    % Rectangle for blob roi: [XMIN YMIN WIDTH HEIGHT]
+    rect = [perim2(1)-pad_val, perim2(2)-pad_val,...
+                         perim2(3)+ 2*pad_val, perim2(4)+2*pad_val];
+                     
+    % Crop down image to predator blob using 'BoundingBox' output
+    % crop image syntax: imcrop(im,[XMIN YMIN WIDTH HEIGHT])
+    imBlob = imcrop(im,rect);
     
-    % Crop down to blob
-    imBlob = imcrop(im,[Croi_min Rroi_min ...
-                        Croi_max-Croi_min Rroi_max-Rroi_min]);
+    imBlobBW = bwconvhull(imBlob<(tVal*255),'objects');
     
-    % Enhance blob contrast
-    %imBlob = adapthisteq(imBlob,'clipLimit',0.02,'Distribution','rayleigh');
-    %imBlob = imadjust(imBlob);
+    % Store predator data
+%     blob.xPerim    = perim(:,2);
+%     blob.yPerim    = perim(:,1);
+    blob.roi_blob  = rect;
     
-    % Store data
-    blob.xPerim    = perim(:,2);
-    blob.yPerim    = perim(:,1);
-    blob.roi_blob  = [Croi_min Rroi_min Croi_max-Croi_min Rroi_max-Rroi_min];
-    
-    %clear perim Croi_min Rroi_min Croi_max Rroi_max
 end
 
 % If there is a blob, find binary blobs (big and small)
-if ~isnan(blob.xPerim(1))
+if ~isnan(blob.roi_blob(1))
     
     
     % Find largest blob
-    [imBW,numBlob] = returnBlob(~im2bw(imBlob,tVal));
+%     [imBW,numBlob] = returnBlob(~im2bw(imBlob,tVal));
+    [imBW,numBlob] = returnBlob(imBlobBW);
     
     % Create tmp image (uses blob as mask)
     tmp = imBlob.*0+2.^16;
@@ -484,20 +451,17 @@ function [imBW,numBlob] = returnBlob(imBW)
 % Returns binary image of blobs
 
 % Close gaps with dilation and erosion (should be able to use 'imclose')
-se   = strel('disk',6);
+se   = strel('disk',5);
 imBW = imdilate(imBW,se);
 imBW = imerode(imBW,se);
-% imBW = imclose(imBW,se);
 
 % Identify blobs (BWCONNCOMP is more memory efficient) 
-% LL = bwconncomp(imBW);
-% props = regionprops(LL,'Centroid','Area');
-
-LL    = bwlabel(imBW);
-props = regionprops(LL,'Centroid','Area');
+CC = bwconncomp(imBW);
+LL = labelmatrix(CC);
+% LL    = bwlabel(imBW);
 
 % Get peripheral shapes
-[bb,L] = bwboundaries(imBW,'noholes');
+[bb,~] = bwboundaries(imBW,'noholes');
 
 % Select blob with greatest periphery
 maxB = 0;
@@ -505,9 +469,6 @@ idx = [];
 for j = 1:length(bb)
     if length(bb{j}) > maxB
         maxB = length(bb{j});
-        perim = bb{j};
-        xPerim = perim(:,1);
-        yPerim = perim(:,2);
         idx = j;
     end
 end

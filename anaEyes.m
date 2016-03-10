@@ -1,7 +1,7 @@
-function anaEyes(dPath,vPath, startFrame)
+function anaEyes(dPath,vPath,startFrame)
 
 % indicator to visualize process
-showAna = 1;
+showAna = 0;
 
 % indicator for reanalyzing eyes 
 redoEyes = 1;
@@ -37,14 +37,14 @@ a = dir([vPath filesep 'exp*']);
 pEye.R.xCent = 23;
 pEye.R.yCent = 25;
 pEye.R.area = 100;
-pEye.R.tVal = 1;
+pEye.R.tVal = 40;
 
 % Defaults fo left eye
 %pEye.L.xCent = 23;
 pEye.L.xCent = 21;
 pEye.L.yCent = 9;
 pEye.L.area = 100;
-pEye.L.tVal = 1;
+pEye.L.tVal = 40;
 
 
 %% Fit splines to head and rostrum
@@ -87,8 +87,6 @@ cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
 
 if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     
-%     startFrame = 150;
-    
     % Interval for resetting reference frame
     frameResetIntrvl = 100;
     
@@ -96,13 +94,22 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     eye_area = 100;
     
     % Origin for head FOR in local system
-    roi.xL          = -0.3*cran_len;
-    roi.yL          = -1.1*cran_len;
+    roi.xL          = -0.55*cran_len;       % default = -0.3
+    roi.yL          = -0.9*cran_len;        % default = -1.1
+    
+    % width and height of bounding box around head
     roi.w           = 2.2*cran_len;
     roi.h           = 2.2*cran_len;
+    
+    % coordinates for bounding box, local FOR
     roi.xCoordL = [roi.xL roi.xL+roi.w roi.xL+roi.w roi.xL roi.xL]';
     roi.yCoordL = [roi.yL roi.yL roi.yL+roi.h roi.yL+roi.h roi.yL]';
-    roi.rEye    = cran_len*.35;
+    
+    % radius for circle around eyes
+    roi.rEye    = cran_len*0.35;     % default = 0.35
+    
+    % blob roi from anaFrames code (1st frame)
+%     roi.xBlob = mid.roi_blob(1,1) mid.roi_blob(1,1)+roi.w ???????????;
     
     % Dimensions of frame around head
     headIMdim = [2*cran_len 1.75*cran_len];
@@ -116,12 +123,13 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
      % Load image of first video frame
     im = imread([vPath filesep a(startFrame).name]);
     
+    % cropped head image, aligned with horizontal
     [imHead0,tform1] = giveHeadIM(im,sp,roi,startFrame);
     
     f = figure;
     imshow(imHead0,'InitialMagnification','fit')
     title('Right eye: select anterior, then posterior margin')
-    [x,y,b] = ginput(2);
+    [x,y,~] = ginput(2);
     hold on
     plot(x(1),y(1),'+r',x,y,'r-')
     
@@ -130,29 +138,48 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     rAng0 = atan2(-(y(2)-y(1)),x(2)-x(1));
     
     title('Left eye: select anterior, then posterior margin')
-    [x,y,b] = ginput(2);
+    [x,y,~] = ginput(2);
     plot(x(1),y(1),'+g',x,y,'g-')
-    pause(2)
-    close(f)
+    pause(1)
     
     % Initial left eye angle (relative to body axis)
     % switched sign on y-coord
     lAng0 = atan2(-(y(2)-y(1)),x(2)-x(1));
     
-    clear tform tform1 x y b
+    % Get initial eye centroid position
+    title('Select center of Right eye, then center of Left eye')
+    [x,y,~] = ginput(2);
+    plot(x,y,'wo')
+    pause(2)
+   
+    % close figure
+    close(f)
+    
+    % save centroid eye positions
+    pEye.R.xCent = x(1);
+    pEye.R.yCent = y(1);
+    pEye.L.xCent = x(2);
+    pEye.L.yCent = y(2);
+    
+    clear tform tform1 x y 
     
     bk_clr = round(1.5*min(double(im(:))));
     %bk_clr = 255;
     
     % Approximate centroid positions of eye
-    pEye.R.xCent = 0.35*roi.w-roi.xL;
-    pEye.R.yCent = abs(roi.yL)/2+roi.h*0.12;
-    pEye.L.xCent = 0.35*roi.w-roi.xL;
-    pEye.L.yCent = abs(roi.yL)/2+roi.h*.33;
+%     pEye.R.xCent = 0.135*roi.w-roi.xL;           % default = 0.35
+%     pEye.R.yCent = abs(roi.yL)/2+roi.h*0.12;
+%     pEye.L.xCent = 0.135*roi.w-roi.xL;           % default = 0.35
+%     pEye.L.yCent = abs(roi.yL)/2+roi.h*.33;
+    
+    % estimate eye area from cropped image
+    [eyeArea,pEye.tVal] = giveArea(imHead0,pEye,roi.rEye);
     
     % Get eye coordinate data
-    eL = give_eye(imHead0,pEye.L,eye_area,bk_clr,roi.rEye);
-    eR = give_eye(imHead0,pEye.R,eye_area,bk_clr,roi.rEye);
+%     eL = give_eye(imHead0,pEye.L,eye_area,bk_clr,roi.rEye);
+%     eR = give_eye(imHead0,pEye.R,eye_area,bk_clr,roi.rEye);
+    eL = give_eye(imHead0,pEye.L,eyeArea,bk_clr,roi.rEye);
+    eR = give_eye(imHead0,pEye.R,eyeArea,bk_clr,roi.rEye);
     
     % Eye data for next iteration
     pEye0.R = eR;
@@ -183,7 +210,6 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         
         % Head image (cropped and aligned to horizontal)
         [imHead,tform1] = giveHeadIM(im,sp,roi,i);
-        
 
         % Transformation object to stablize head wrt imHead0
         tform2 = imregtform(imHead,imHead0,'rigid',optimizer, metric);
@@ -195,8 +221,10 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         imStable(~im2bw(imStable,1-254/255)) = 255;        
         
         % Get eye coordinate data
-        eL = give_eye(imStable,pEye.L,eye_area,bk_clr,roi.rEye);
-        eR = give_eye(imStable,pEye.R,eye_area,bk_clr,roi.rEye);
+%         eL = give_eye(imStable,pEye.L,eye_area,bk_clr,roi.rEye);
+%         eR = give_eye(imStable,pEye.R,eye_area,bk_clr,roi.rEye);
+        eL = give_eye(imStable,pEye.L,eyeArea,bk_clr,roi.rEye);
+        eR = give_eye(imStable,pEye.R,eyeArea,bk_clr,roi.rEye);
         
         % Transformation object to stabilize eyes
         if i == startFrame
@@ -240,7 +268,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
             % reset initial eye angles
             rAng0 = eyes.rAngle(i,1);
             lAng0 = eyes.lAngle(i,1);
-            
+
             % reset the reset counter
             iReset = 1;
         else
@@ -414,9 +442,11 @@ rost  = [sp.xRost(cFrame) sp.yRost(cFrame)];
 % Define coord transformation (rostrum as origin)
 tform = local_system(rost,head);
 
-% Origin in global FOR
+% Bounding box around head in global FOR 
 [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
 
+%----- NOTE: try to use bounding box from anaEyes here instead
+% [roi.xCoordG, roi.yCoordG] = roi.blob????????;
 
 %[xRost,yRost] = global_to_local(tform,rost(1),rost(2));
 
@@ -429,11 +459,15 @@ imHead = imwarp(im,invert(tform1),'OutputView',imref2d(size(im)));
 
 pixVal = imHead(1:round(roi.h),round(roi.w));
 
+% Get center point along fish body, posterior to head point
 xCent = round(roi.w);
 yCent = find(pixVal==min(pixVal),1,'first');
 
+% rostrum point
+rostP = [-roi.xL -roi.yL];
+
 % Redefine coord transformation (originG as origin)
-tform2 = local_system_special([-roi.xL -roi.yL],[xCent yCent],[0 0]);
+tform2 = local_system_special(rostP,[xCent yCent],[0 0]);
 
 % Head image with aligned horz axis
 imHead2 = imwarp(imHead,invert(tform2),'OutputView',imref2d(size(im)));
@@ -533,8 +567,80 @@ imHead = imwarp(im,invert(tform),'OutputView',imref2d(size(im)));
 % Crop
 imHead = imHead([1:dims(1)],[1:dims(2)]);
 
+function [eyeArea,tVal1] = giveArea(imHead,pEye,r)
+% INPUTS: 
+%   - imHead    = cropped head image
+%   - pEye      = previous centroid position of eye
+%   - r         = radius for circle around eye
+%
+% OUTPUTS:
+%   - eyeArea   = target eye area 
+
+% indicator for while loop
+proceed = 1;
+
+% set initial threshold value
+% tVal1 = mean2(imHead);
+tVal1 = 45;
+
+% maximum threshold value
+max_tVal = 100;
+
+while proceed && (tVal1 < max_tVal)
+    
+    % threshold image (eye blobs must be white!)
+    imBW1  = ~im2bw(imHead,tVal1/255);
+    
+    imBW1 = imclose(imBW1, strel('disk', 2));
+    
+    % measure region properties of connected components
+    eyeBlobs = regionprops(imBW1,'Area','Centroid');
+    
+    % filter out tiny objects
+%     idx = find([eyeBlobs.Area] > 10);
+    
+    % keep only the larger connected components, i.e., eye blobs
+    eyeBlobs = eyeBlobs([eyeBlobs.Area] > 10);
+    
+    % check that there are 2 blobs
+    if length(eyeBlobs)==2
+        
+        % if so ... compute the ratio of the blob areas ...
+        sizeRatio = min([eyeBlobs.Area])/max([eyeBlobs.Area]);
+        
+        % ... and check that they are of similar size
+        if sizeRatio < 0.5
+            % increase threshold value
+            tVal1 = tVal1 + 1;
+        else
+            % exit while loop
+            proceed = 0;
+        end
+        
+        % otherwise ...
+    else
+        tVal1 = tVal1 + 1;
+    end
+end
+
+% define binary mask of eye blobs
+% eyeBlobs = ismember(labelmatrix(cc), idx);
+
+% measure area of eyes
+eyeArea = mean([eyeBlobs.Area]);
+
+
 
 function cEye = give_eye(im,pEye,eye_area,bk_clr,r)
+% INPUTS: 
+%   - im        = cropped head image
+%   - pEye      = previous centroid position of eye
+%   - eye_area  = target area to achieve (cosider an adaptive area)
+%   - bk_clr    = average value of background?
+%   - r         = radius for circle around eye
+%
+% OUTPUTS:
+%   - cEye      = coordinates for eye blob & eye mask image
 
 % Adjust image contrast
 %im = imadjust(im);
@@ -549,7 +655,7 @@ tStep = 1;
 
 max_tVal = 255/2;
 
-% adaptively find threshold value s.t. there are only two blobs
+% adaptively find threshold value to reach target eye area
 while tVal < max_tVal
     
     % Return blob
@@ -610,7 +716,7 @@ bw = roipoly(im,xCirc,yCirc);
 % bw = imdilate(bw,se);
 
 % Get image of just the eye
-imMask = cast(zeros(size(im))+bk_clr,class(im));
+imMask = bk_clr * ones(size(im),'uint8');
 imMask(bw) = im(bw);
 
 % Cropping rectangle
@@ -631,7 +737,7 @@ function [imBW2,cArea,x,y] = give_blob(im,tVal,x,y)
 imBW  = ~im2bw(im,tVal/255);
 
 % Circle structuring element with radius=2
-seEye = strel('disk',2);
+seEye = strel('disk',3);
 
 % Perform a morphological close (dilation + erosion) operation on the image.
 imBW = imerode(imBW,strel('disk',1));
@@ -646,16 +752,16 @@ imBW1 = bwconvhull(imBW,'objects',8);
 % title('Convex hulls')
 
 % Identify blobs
-LL    = bwlabel(imBW1);
-props = regionprops(LL,'Centroid','Area');
+props = regionprops(imBW1,'Centroid','Area');
 
 % If there are blobs . . .
 if ~isempty(props)
     
         % Select blob that includes previous centroid
         imBW2 = bwselect(imBW1,x,y,8);
-        LL    = bwlabel(imBW2);
-        props = regionprops(LL,'Centroid','Area');
+        
+        % measure its properties
+        props = regionprops(imBW2,'Centroid','Area');
         
         if isempty(props)
             cArea = 0;

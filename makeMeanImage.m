@@ -4,7 +4,7 @@ function imMean = makeMeanImage(dPath,vPath,cal,B)
 %% Parameters
 
 % Max number of frames for creating the mean image
-maxFrames = 1000;
+maxFrames = 500;
 
 % total number of frames in 'B'
 frTot = length(B);
