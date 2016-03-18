@@ -2,18 +2,18 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-02-24';
-    seqName     = 'S013';
+    batchName   = '2016-02-17';
+    seqName     = 'S01';
 end
 
 
 %% Parameter values
 
 % indicator to redo midline tracking
-redoMidline = 1;
+redoMidline = 0;
 
 % indicator for different mean image 
-newMean = 1;
+newMean = 0;
 
 % indicator for reanalyzing eyes 
 redoEyes = 1;

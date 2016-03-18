@@ -282,11 +282,11 @@ function blob = findBlobs(imStart,imMean,roi)
 % Adjust grayscale values  
  
 %---SKIP imadjust steps if photos have been preprocessed in Photoshop----
-im     = (imadjust(imStart));
-imSub  = (imadjust(imMean));
+% im     = (imadjust(imStart));
+% imSub  = (imadjust(imMean));
 
-% im = imStart;
-% imSub = imMean;
+im = imStart;
+imSub = imMean;
 
 % Subtract background
 warning off

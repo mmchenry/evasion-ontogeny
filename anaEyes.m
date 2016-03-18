@@ -1,11 +1,14 @@
 function anaEyes(dPath,vPath,startFrame,redoEyes)
 
-% indicator to visualize process
+% Indicator to visualize process
 showAna = 0;
 
+% Indicator for contrast adjustment of first image
+adjustOn = 0;
+
 % Tolerance for spline fits
-tol.head = 0.5e2;         % default: tol.head = 1e2
-tol.rost = 0.75e1;         % default: tol.rost = 0.5e1
+tol.head = 1e2;         % default: tol.head = 1e2
+tol.rost = 1.05e1;         % default: tol.rost = 0.5e1
 
 % Target number of pixels for eye area
 eye_area = 100;
@@ -65,7 +68,7 @@ sp.yHead = fnval(spaps(mid.t,mid.yHead,tol.head),mid.t);
 warning on
 
 % Visualize spline fits
-if 0
+if 1
     figure
     subplot(2,1,1)
     plot(mid.xRost,mid.yRost,'.',sp.xRost,sp.yRost,'-')
@@ -109,7 +112,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     roi.yCoordL = [roi.yL roi.yL roi.yL+roi.h roi.yL+roi.h roi.yL]';
     
     % radius for circle around eyes
-    roi.rEye    = cran_len*0.365;     % default = 0.35
+    roi.rEye    = cran_len*0.33;     % default = 0.35
     
     % Dimensions of frame around head
     headIMdim = [2*cran_len 1.75*cran_len];
@@ -124,7 +127,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     im = imread([vPath filesep a(startFrame).name]);
     
     % cropped head image, aligned with horizontal
-    [imHead0,~] = giveHeadIM(im,sp,roi,startFrame);
+    [imHead0,~] = giveHeadIM(im,sp,roi,startFrame,adjustOn);
     
     f = figure;
     imshow(imHead0,'InitialMagnification','fit')
@@ -146,38 +149,42 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     % switched sign on y-coord
     lAng0 = atan2(-(y(2)-y(1)),x(2)-x(1));
     
-    % Get initial eye centroid position
-    title('Select center of Right eye, then center of Left eye')
-    [x,y,~] = ginput(2);
-    plot(x,y,'wo')
-    pause(2)
-   
-    % close figure
-    close(f)
+    % Get initial Right eye centroid position
+    title('Select center of Right eye')
+    [x,y,~] = ginput(1);
+    plot(x(1),y(1),'wo')
     
-    % save centroid eye positions
+    % save centroid Right eye position
     pEye.R.xCent = x(1);
     pEye.R.yCent = y(1);
-    pEye.L.xCent = x(2);
-    pEye.L.yCent = y(2);
+    
+    % Get initial Left eye centroid position
+    title('Select center of Left eye')
+    [x,y,~] = ginput(1);
+    plot(x(1),y(1),'yo')
+    pause(1)
+    
+    % save centroid Right eye position 
+    pEye.L.xCent = x(1);
+    pEye.L.yCent = y(1);
+    
+    % close figure
+    close(f)
     
     clear tform tform1 x y 
     
     bk_clr = round(1.5*min(double(im(:))));
     %bk_clr = 255;
     
-    % Approximate centroid positions of eye
-%     pEye.R.xCent = 0.135*roi.w-roi.xL;           % default = 0.35
-%     pEye.R.yCent = abs(roi.yL)/2+roi.h*0.12;
-%     pEye.L.xCent = 0.135*roi.w-roi.xL;           % default = 0.35
-%     pEye.L.yCent = abs(roi.yL)/2+roi.h*.33;
+    % Initial threshold value, based on first frame
+    Reye_tVal   = imHead0(round(pEye.R.xCent),round(pEye.R.yCent));
+    Leye_tVal   = imHead0(round(pEye.L.xCent),round(pEye.L.yCent));
+    tVal0       = mean([Reye_tVal,Leye_tVal]);
     
     % estimate eye area from cropped image
-    [eyeArea,tVal] = giveArea(imHead0,pEye,roi.rEye);
+    [eyeArea,tVal] = giveArea(imHead0,pEye,tVal0);
     
     % Get eye coordinate data
-%     eL = give_eye(imHead0,pEye.L,eye_area,bk_clr,roi.rEye);
-%     eR = give_eye(imHead0,pEye.R,eye_area,bk_clr,roi.rEye);
     eL = give_eye(imHead0,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
     eR = give_eye(imHead0,pEye.R,eyeArea.Reye,bk_clr,roi.rEye);
     
@@ -199,11 +206,12 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % Load image of video frame
         im = imread([vPath filesep a(i).name]);
         
-        % Subtract background image (use meanImage2)
-        im = imcomplement(imsubtract(imMean,im));
-        
-        % Increase contrast
-%         im = imadjust(im);
+        % if newMean is ON...
+        if newMean
+            
+            % ...Subtract background image (use meanImage2)
+            im = imcomplement(imsubtract(imMean,im));
+        end
         
         % Get smoothed positions for head coordinates
         head  = [sp.xHead(i) sp.yHead(i)];
@@ -216,13 +224,13 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
         
         % Head image (cropped and aligned to horizontal)
-        [imHead,tform1,anglCor] = giveHeadIM(im,sp,roi,i,pEye.tVal);
+        [imHead,tform1,anglCor] = giveHeadIM(im,sp,roi,i,1,pEye.tVal);
         
         % NOTE: tform1 does not give the total rotation angle to obtain
         % 'imHead' from 'im'
 
         % Transformation object to stablize head wrt imHead0
-        tform2 = imregtform(imHead,imHead0,'rigid',optimizer, metric);
+        tform2 = imregtform(imHead,imHead0,'rigid',optimizer,metric);
          
         % Stablize head image
         imStable = imwarp(imHead,tform2,'OutputView',imref2d(size(imHead0)));
@@ -231,20 +239,39 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         imStable(~im2bw(imStable,1-254/255)) = 255;        
         
         % Get eye coordinate data
-%         eL = give_eye(imStable,pEye.L,eye_area,bk_clr,roi.rEye);
-%         eR = give_eye(imStable,pEye.R,eye_area,bk_clr,roi.rEye);
         eL = give_eye(imStable,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
         eR = give_eye(imStable,pEye.R,eyeArea.Reye,bk_clr,roi.rEye);
         
         % Transformation object to stabilize eyes
         if i == startFrame
-            eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer, metric);
-            eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer, metric);
+            
+            eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer,metric);
+            eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer,metric);
+            
         else
-            eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer, metric,...
-                            'InitialTransformation',pEye.R.tform);
-            eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer, metric,...
-                            'InitialTransformation',pEye.L.tform);
+            
+            % Attempt to stabilize Right eye
+            try
+                eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',...
+                    optimizer,metric,'InitialTransformation',pEye.R.tform);
+                
+           % If error above . . .
+            catch
+                % Use data from previous iteration
+                eR.tform = pEye.R.tform;
+            end
+             
+            % Attempt to stabilize Left eye
+            try
+                eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',...
+                    optimizer,metric,'InitialTransformation',pEye.L.tform);
+                
+           % If error above . . .
+            catch
+                % Use data from previous iteration
+                eL.tform = pEye.L.tform; 
+            end
+            
         end
          
         % Stablize eye images
@@ -458,15 +485,21 @@ if 0
 end
 
 
-function [imHead2,tform1,anglCor] = giveHeadIM(im,sp,roi,cFrame,tVal)
-
-% INPUTS: im = original video frame; sp = spline fitted head & rostrum data
+function [imHead2,tform1,anglCor] = giveHeadIM(im,sp,roi,cFrame,levels,tVal)
+% INPUTS: 
+%       - im  = original video frame 
+%       - sp  = spline fitted head & rostrum data
+%       - roi = region of interest
+%       - cFrame = current frame
+%       - levels = indicator for increasing image contrast
+%       - tVal = threshold value
+%
 % OUTPUT: 
 %       - imHead2 = image of cropped and aligned head 
 %       - tform1  = transformation matrix to obtain image 
 
 % Set tVal if not given as input
-if nargin < 5
+if nargin < 6
     tVal = 35;
 end
     
@@ -479,11 +512,6 @@ tform = local_system(rost,head);
 
 % Bounding box around head in global FOR 
 [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
-
-%----- NOTE: try to use bounding box from anaEyes here instead
-% [roi.xCoordG, roi.yCoordG] = roi.blob????????;
-
-%[xRost,yRost] = global_to_local(tform,rost(1),rost(2));
 
 % Redefine coord transformation (originG as origin)
 tform1 = local_system_special(rost,head,[roi.xCoordG(1) roi.yCoordG(1)]);
@@ -516,32 +544,12 @@ imHead = imHead([1:roi.w],[1:roi.h]);
 imHead2 = imHead2([1:roi.w],[1:roi.h]);
 
 % Adjust cropped image contrast
-imHead2 = imadjust(imHead2,[tVal/255;1],[2/255;1]);
+if levels
+    imHead2 = imadjust(imHead2,[tVal/255;1],[2/255;1]);
+end
 
 % compute correction angle, need to add this to tform1 for total angle
 anglCor = atan2(tform2.T(1,2),tform2.T(1,1));
-
-%TODO: Calculate the total transformation
-
-% itform1 = invert(tform1);
-% itform2 = invert(tform2);
-% 
-% tform_tot = tform1;
-% 
-% tform_tot.T(1:2,1:2) = itform1.T(1:2,1:2)*itform2.T(1:2,1:2);
-% tform_tot.T(3,1:2) = [itform1.T(3,1)+itform2.T(3,1) itform1.T(3,2)+itform2.T(3,2)];
-% 
-% imHead3 = imwarp(im,tform_tot,'OutputView',imref2d(size(im)));
-% imHead3 = imHead3([1:roi.w],[1:roi.h]);
-% 
-% if 1
-%     subplot(2,2,1)
-%     imshow(imHead2)
-%     subplot(2,2,2)
-%     imshow(imHead3)
-%     subplot(2,2,3:4)
-%     imshowpair(imHead2,imHead3)
-% end
 
 if 0
     figure
@@ -609,7 +617,7 @@ imHead = imwarp(im,invert(tform),'OutputView',imref2d(size(im)));
 % Crop
 imHead = imHead([1:dims(1)],[1:dims(2)]);
 
-function [eyeArea,tVal1] = giveArea(imHead,pEye,r)
+function [eyeArea,tVal] = giveArea(imHead,pEye,tVal0)
 % INPUTS: 
 %   - imHead    = cropped head image
 %   - pEye      = previous centroid position of eye
@@ -618,22 +626,20 @@ function [eyeArea,tVal1] = giveArea(imHead,pEye,r)
 % OUTPUTS:
 %   - eyeArea   = target eye area 
 
-% indicator for while loop
+% Indicator for while loop
 proceed = 1;
 
-% set initial threshold value
+% Set initial threshold value
 % tVal1 = mean2(imHead);
-tVal1 = 40;
+tVal = tVal0;
 
-% maximum threshold value
-max_tVal = 100;
+% Maximum threshold value
+max_tVal = 80;
 
-while proceed && (tVal1 < max_tVal)
+while proceed && (tVal < max_tVal)
     
     % threshold image (eye blobs must be white!)
-    imBW1  = ~im2bw(imHead,tVal1/255);
-    
-    imBW2 = imclose(imBW1, strel('disk', 2));
+    imBW1  = ~im2bw(imHead,tVal/255);
     
     % Select blob that includes right eye position
     imReye = bwselect(imBW1,pEye.R.xCent,pEye.R.yCent,8);
@@ -660,7 +666,7 @@ while proceed && (tVal1 < max_tVal)
         % ... and check that they are of similar size
         if sizeRatio < 0.5
             % increase threshold value
-            tVal1 = tVal1 + 1;
+            tVal = tVal + 1;
         else
             % exit while loop
             proceed = 0;
@@ -668,7 +674,7 @@ while proceed && (tVal1 < max_tVal)
         
         % otherwise ...
     else
-        tVal1 = tVal1 + 1;
+        tVal = tVal + 1;
     end
 end
 
@@ -691,9 +697,6 @@ function cEye = give_eye(im,pEye,eye_area,bk_clr,r)
 % OUTPUTS:
 %   - cEye      = coordinates for eye blob & eye mask image
 
-% Adjust image contrast
-%im = imadjust(im);
-
 %TODO: Set initial centroid position.
 
 % set initial threshold value
@@ -702,7 +705,7 @@ tVal = max([pEye.tVal-3 1]);
 % set the stepsize for decreasing tVal
 tStep = 1;
 
-max_tVal = 255/2;
+max_tVal = 255/3;
 
 % adaptively find threshold value to reach target eye area
 while tVal < max_tVal
@@ -783,19 +786,14 @@ cEye.yCirc = yCirc;
 function [imBW2,cArea,x,y] = give_blob(im,tVal,x,y)
 
 % Threshold image and include only ROI
-imBW  = ~im2bw(im,tVal/255);
+imBW1  = ~im2bw(im,tVal/255);
 
 % Circle structuring element with radius=1
-seEye = strel('disk',1);
+% seEye = strel('disk',1);
 
 % Perform a morphological open (erosion + dilation) operation on the image.
 % This gets rid of small objects in foreground 
-imBW1 = imopen(imBW,seEye);
-
-% find convex hulls of objects in imBW, with 8-connected neighborhood
-% imBW1 = bwconvhull(imBW,'objects',8);
-% figure, imshow(CH_objects,'InitialMagnification','fit');
-% title('Convex hulls')
+% imBW1 = imopen(imBW,seEye);
 
 % Identify blobs
 props = regionprops(imBW1,'Centroid','Area');
