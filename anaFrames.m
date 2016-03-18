@@ -1,5 +1,5 @@
 function anaFrames(dPath,vPath,tPath,cPath,p,roi,...
-                            includeCalibration,startFrame,endFrame,skipFrame)
+                   includeCalibration,startFrame,newMean,endFrame,skipFrame)
 % Steps thru frames, creates a thumbnail image and then extracts the
 % midline and eye positions
 
@@ -59,9 +59,9 @@ else
 end
 
 % Set default end frame and skipFrame
-if nargin < 10
+if nargin < 11
     skipFrame = 0;
-    if nargin < 9
+    if nargin < 10
         endFrame = length(B);
     end
 end
@@ -81,7 +81,7 @@ frames = startFrame:(1+skipFrame):endFrame;
 
 %% Make Mean image
 
-imMean = makeMeanImage(dPath,vPath,cal,B);
+imMean = makeMeanImage(dPath,vPath,cal,B,newMean);
 
 
 %% Loop thru frames sequentially, finding the body midline
@@ -147,7 +147,7 @@ eye = nan;
                 hold on
                 plot(blob.xMid,blob.yMid,'go-')
                 hold off
-                pause(0.1)
+                pause%(0.1)
             end
             
             % Visualize frame for debugging (switch "parfor" loop to "for")
