@@ -3,12 +3,12 @@ function anaEyes(dPath,vPath,startFrame,redoEyes)
 % Indicator to visualize process
 showAna = 0;
 
-% Indicator for contrast adjustment of first image
+% Indicator for contrast adjustment of image
 adjustOn = 0;
 
 % Tolerance for spline fits
-tol.head = 1e2;         % default: tol.head = 1e2
-tol.rost = 1.05e1;         % default: tol.rost = 0.5e1
+tol.head = 0.005e2;         % default: tol.head = 1e2
+tol.rost = 0.250e1;         % default: tol.rost = 0.5e1
 
 % Target number of pixels for eye area
 eye_area = 100;
@@ -59,6 +59,12 @@ imMean = makeMeanImage(dPath,vPath,[],B,newMean);
 % Disable warnings for spline fit
 warning off
 
+% intial smoothing of data (use when midline data has a few errors)
+% mid.xRost = smooth(mid.xRost,0.005,'rloess');
+% mid.yRost = smooth(mid.yRost,0.005,'rloess');
+mid.xHead = smooth(mid.xHead,0.020,'rloess');
+mid.yHead = smooth(mid.yHead,0.020,'rloess');
+
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
 sp.yRost = fnval(spaps(mid.t,mid.yRost,tol.rost),mid.t);
@@ -84,7 +90,7 @@ if 1
     ylabel('Head y')
     xlabel('Head x')   
 end
-
+pause
 % Cranial length
 cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
 
@@ -112,7 +118,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     roi.yCoordL = [roi.yL roi.yL roi.yL+roi.h roi.yL+roi.h roi.yL]';
     
     % radius for circle around eyes
-    roi.rEye    = cran_len*0.33;     % default = 0.35
+    roi.rEye    = cran_len*0.36;     % default = 0.35
     
     % Dimensions of frame around head
     headIMdim = [2*cran_len 1.75*cran_len];
@@ -127,7 +133,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     im = imread([vPath filesep a(startFrame).name]);
     
     % cropped head image, aligned with horizontal
-    [imHead0,~] = giveHeadIM(im,sp,roi,startFrame,adjustOn);
+    [imHead0,~] = giveHeadIM(im,sp,roi,startFrame,0);
     
     f = figure;
     imshow(imHead0,'InitialMagnification','fit')
@@ -177,8 +183,8 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     %bk_clr = 255;
     
     % Initial threshold value, based on first frame
-    Reye_tVal   = imHead0(round(pEye.R.xCent),round(pEye.R.yCent));
-    Leye_tVal   = imHead0(round(pEye.L.xCent),round(pEye.L.yCent));
+    Reye_tVal   = imHead0(round(pEye.R.yCent),round(pEye.R.xCent));
+    Leye_tVal   = imHead0(round(pEye.L.yCent),round(pEye.L.xCent));
     tVal0       = mean([Reye_tVal,Leye_tVal]);
     
     % estimate eye area from cropped image
@@ -224,7 +230,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
         
         % Head image (cropped and aligned to horizontal)
-        [imHead,tform1,anglCor] = giveHeadIM(im,sp,roi,i,1,pEye.tVal);
+        [imHead,tform1,anglCor] = giveHeadIM(im,sp,roi,i,adjustOn,pEye.tVal);
         
         % NOTE: tform1 does not give the total rotation angle to obtain
         % 'imHead' from 'im'
@@ -634,7 +640,7 @@ proceed = 1;
 tVal = tVal0;
 
 % Maximum threshold value
-max_tVal = 80;
+max_tVal = 90;
 
 while proceed && (tVal < max_tVal)
     
@@ -705,7 +711,7 @@ tVal = max([pEye.tVal-3 1]);
 % set the stepsize for decreasing tVal
 tStep = 1;
 
-max_tVal = 255/3;
+max_tVal = 255/2;
 
 % adaptively find threshold value to reach target eye area
 while tVal < max_tVal

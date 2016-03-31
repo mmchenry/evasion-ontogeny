@@ -16,7 +16,7 @@ frTot = length(B);
 a2 = dir([dPath filesep 'meanImage.tif']);
 
 % Calculate mean image if it does not exist
-if isempty(a2)
+if isempty(a2) && ~newMean
     
     % Define list of frame numbers, depending on max number of frames
     % requested

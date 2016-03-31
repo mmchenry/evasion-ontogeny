@@ -7,7 +7,13 @@ function anaFrames(dPath,vPath,tPath,cPath,p,roi,...
 %% Parameters
 
 % Report progress at command line
-reportStatus = 1;
+reportStatus    = 1;
+
+% Indicator for visualising progress 
+figOn           = 0;
+
+% Indicator for adjusting image contrast
+adjustON        = 0;
 
 
 %% Initialize data structure 'B'
@@ -38,8 +44,9 @@ else
     frTot = length(a);
     
     % initialize data structure 'B' with fields 'fr_num' and 'filename'
-    B(frTot).fr_num = frTot;
-    B(frTot).filename = [];
+    B(frTot).fr_num     = frTot;
+    B(frTot).filename   = [];
+%     B(frTot).blob       = [];
     
     % Loop thru video frames
     for i = 1:frTot
@@ -123,7 +130,7 @@ eye = nan;
         end
         
         % Find blobs that define the fish in frame
-        blob = findBlobs(im,imMean,roi);
+        blob = findBlobs(im,imMean,roi,adjustON);
         
         % If blob is not a nan . . .
         if ~isnan(blob.im(1))
@@ -141,13 +148,19 @@ eye = nan;
                 
             end
             
-            if 0
+            if ~isnan(blob.xMid(1)) && figOn
                 figure(10)
+                
+                % Image used to find midline overlayed with midline points
                 imshow(blob.im,[],'InitialMagnification','fit')
                 hold on
                 plot(blob.xMid,blob.yMid,'go-')
                 hold off
-                pause%(0.1)
+                pause(0.1)
+                
+                figure(11),
+                % Blob images, large and small blobs
+                imshowpair(blob.BW,blob.BWsmall,'montage')
             end
             
             % Visualize frame for debugging (switch "parfor" loop to "for")
@@ -167,6 +180,11 @@ eye = nan;
                 mid.yRost(i,1)  = blob.yMid(1) + blob.roi_blob(2);
                 mid.xHead(i,1)  = blob.xMid(2) + blob.roi_blob(1);
                 mid.yHead(i,1)  = blob.yMid(2) + blob.roi_blob(2);
+                
+                % Store away rest of midline data into cell arrays
+                mid.xMid{i,1}   = blob.xMid + blob.roi_blob(1);
+                mid.yMid{i,1}   = blob.yMid + blob.roi_blob(2);
+                mid.sMid{i,1}   = blob.sMid;
             else
                 mid.xRost(i,1)  = nan;
                 mid.yRost(i,1)  = nan;
@@ -174,19 +192,19 @@ eye = nan;
                 mid.yHead(i,1)  = nan;
             end
             
-            % Store prey coordinates
-            if blob.preyOn
-                prey.t(i,1)         = mid.t(i,1);
-                prey.xPrey(i,1)     = blob.xPrey;
-                prey.yPrey(i,1)     = blob.yPrey;
-                prey.thetaPrey(i,1) = blob.thetaPrey;
-                prey.size(i,1)      = blob.sizePrey;
-            else
-                prey.xPrey(i,1)     = nan;
-                prey.yPrey(i,1)     = nan;
-                prey.thetaPrey(i,1) = nan;
-                prey.size(i,1)      = nan;
-            end
+%             % Store prey coordinates
+%             if blob.preyOn
+%                 prey.t(i,1)         = mid.t(i,1);
+%                 prey.xPrey(i,1)     = blob.xPrey;
+%                 prey.yPrey(i,1)     = blob.yPrey;
+%                 prey.thetaPrey(i,1) = blob.thetaPrey;
+%                 prey.size(i,1)      = blob.sizePrey;
+%             else
+%                 prey.xPrey(i,1)     = nan;
+%                 prey.yPrey(i,1)     = nan;
+%                 prey.thetaPrey(i,1) = nan;
+%                 prey.size(i,1)      = nan;
+%             end
                 
         end
   % ------ NOTE: pBlob is not used in findLandmarks        
@@ -218,7 +236,7 @@ save([dPath filesep 'blob data.mat'],'B')
 save([dPath filesep 'midline data.mat'],'mid')
 
 % Save data 'prey'
-save([dPath filesep 'prey data.mat'],'prey')
+% save([dPath filesep 'prey data.mat'],'prey')
 
 
 function B = setB(B,Bc,Btmp,cFrame)     
@@ -277,16 +295,17 @@ hold off
 %warning on
 pause(0.01)
 
-function blob = findBlobs(imStart,imMean,roi)
+function blob = findBlobs(imStart,imMean,roi,adjustON)
 
-% Adjust grayscale values  
- 
-%---SKIP imadjust steps if photos have been preprocessed in Photoshop----
-% im     = (imadjust(imStart));
-% imSub  = (imadjust(imMean));
+% Adjust grayscale values if adjustON indicator is set to 1
 
-im = imStart;
-imSub = imMean;
+if adjustON
+    im     = (imadjust(imStart));
+    imSub  = (imadjust(imMean));
+else
+    im = imStart;
+    imSub = imMean;
+end
 
 % Subtract background
 warning off
@@ -306,9 +325,11 @@ tVal = min([0.95 graythresh(im)+0.1]);
 % Threshold image
 imBW    = ~im2bw(im,tVal); % & roiI;
 
-% % Dilate im & get properties
-% se    = strel('disk',6);
-% imBW = imdilate(imBW,se);
+% Close image to get rid of small contamination 
+se    = strel('diamond',3);
+imBW = imclose(imBW,se);
+
+
 % %imBW = imerode(imBW,se);
 % LL    = bwlabel(imBW);
 % props = regionprops(LL,'Centroid','Area');
@@ -323,8 +344,8 @@ imBW    = ~im2bw(im,tVal); % & roiI;
 % ccBlobs = bwconncomp(imBW);
 
 % Get peripheral shapes, query size and boundaries
-By2 = regionprops(imBW,'ConvexHull','ConvexArea','ConvexImage',...
-    'BoundingBox','Orientation','Centroid');
+By2 = regionprops(imBW,'ConvexArea','BoundingBox',...
+                  'Orientation','Centroid','Image','FilledImage');
 
 % If no fish or touching a wall . . .
 if isempty(By2) %|| (max(imOverlap(:))==1)
@@ -354,27 +375,27 @@ else
     % Filter out small objects (<15 px) found by 'regionprops'
     By2 = By2([By2.ConvexArea] > 15);
     
-    % find largest object and get is bounding box
+    % Find largest object and get is bounding box
     [~,ind2] = max([By2.ConvexArea]);
     perim2 = By2(ind2).BoundingBox;
     
-    % find smaller object
-    [~,ind3] = min([By2.ConvexArea]);
-    
-    % check to see if there is a prey in this frame
-    if length(By2) > 1 
-        % turn on indicator for prey
-        blob.preyOn = 1;
-        
-        % save relevent prey data
-        blob.xPrey      = By2(ind3).Centroid(1);
-        blob.yPrey      = By2(ind3).Centroid(2);
-        blob.thetaPrey  = By2(ind3).Orientation;
-        blob.sizePrey   = By2(ind3).ConvexArea;
-    else
-        % turn off indicator for prey
-        blob.preyOn = 0;
-    end
+%     % Find smaller object
+%     [~,ind3] = min([By2.ConvexArea]);
+%     
+%     % check to see if there is a prey in this frame
+%     if length(By2) > 1 
+%         % turn on indicator for prey
+%         blob.preyOn = 1;
+%         
+%         % save relevent prey data
+%         blob.xPrey      = By2(ind3).Centroid(1);
+%         blob.yPrey      = By2(ind3).Centroid(2);
+%         blob.thetaPrey  = By2(ind3).Orientation;
+%         blob.sizePrey   = By2(ind3).ConvexArea;
+%     else
+%         % turn off indicator for prey
+%         blob.preyOn = 0;
+%     end
     
     % Number of pixels that pad the blob
     pad_val = 10;
@@ -383,11 +404,12 @@ else
     rect = [perim2(1)-pad_val, perim2(2)-pad_val,...
                          perim2(3)+ 2*pad_val, perim2(4)+2*pad_val];
                      
-    % Crop down image to predator blob using 'BoundingBox' output
+    % Crop down image to predator region using 'BoundingBox' output
     % crop image syntax: imcrop(im,[XMIN YMIN WIDTH HEIGHT])
     imBlob = imcrop(im,rect);
     
-    imBlobBW = bwconvhull(imBlob<(tVal*255),'objects');
+    % Crop down binary image to predator region 
+    imBlobBW = imcrop(imBW,rect);
     
     % Store predator data
 %     blob.xPerim    = perim(:,2);
@@ -402,7 +424,7 @@ if ~isnan(blob.roi_blob(1))
     
     % Find largest blob
 %     [imBW,numBlob] = returnBlob(~im2bw(imBlob,tVal));
-    [imBW,numBlob] = returnBlob(imBlobBW);
+    [imBW,~] = returnBlob(imBlobBW);
     
     % Create tmp image (uses blob as mask)
     tmp = imBlob.*0+2.^16;
