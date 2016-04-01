@@ -50,7 +50,7 @@ pEye.L.tVal = 40;
 
 newMean = 1;
 
-imMean = makeMeanImage(dPath,vPath,[],B,newMean);
+imMean = makeMeanImage(dPath,vPath,[],B,newMean,0);
 
 
 %% Fit splines to head and rostrum
@@ -90,7 +90,7 @@ if 1
     ylabel('Head y')
     xlabel('Head x')   
 end
-pause
+
 % Cranial length
 cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
 

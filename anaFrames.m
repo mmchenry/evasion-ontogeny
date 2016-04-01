@@ -88,7 +88,7 @@ frames = startFrame:(1+skipFrame):endFrame;
 
 %% Make Mean image
 
-imMean = makeMeanImage(dPath,vPath,cal,B,newMean);
+imMean = makeMeanImage(dPath,vPath,cal,B,newMean,0);
 
 
 %% Loop thru frames sequentially, finding the body midline
@@ -191,20 +191,7 @@ eye = nan;
                 mid.xHead(i,1)  = nan;
                 mid.yHead(i,1)  = nan;
             end
-            
-%             % Store prey coordinates
-%             if blob.preyOn
-%                 prey.t(i,1)         = mid.t(i,1);
-%                 prey.xPrey(i,1)     = blob.xPrey;
-%                 prey.yPrey(i,1)     = blob.yPrey;
-%                 prey.thetaPrey(i,1) = blob.thetaPrey;
-%                 prey.size(i,1)      = blob.sizePrey;
-%             else
-%                 prey.xPrey(i,1)     = nan;
-%                 prey.yPrey(i,1)     = nan;
-%                 prey.thetaPrey(i,1) = nan;
-%                 prey.size(i,1)      = nan;
-%             end
+
                 
         end
   % ------ NOTE: pBlob is not used in findLandmarks        
@@ -329,20 +316,6 @@ imBW    = ~im2bw(im,tVal); % & roiI;
 se    = strel('diamond',3);
 imBW = imclose(imBW,se);
 
-
-% %imBW = imerode(imBW,se);
-% LL    = bwlabel(imBW);
-% props = regionprops(LL,'Centroid','Area');
-
-% Image showing intersection of roi boundary & fish
-% imOverlap = ~roiI & imBW;
-
-% Get peripheral shapes
-% By = bwboundaries(imBW,'noholes');
-
-% Get connected components 
-% ccBlobs = bwconncomp(imBW);
-
 % Get peripheral shapes, query size and boundaries
 By2 = regionprops(imBW,'ConvexArea','BoundingBox',...
                   'Orientation','Centroid','Image','FilledImage');
@@ -368,34 +341,12 @@ if isempty(By2) %|| (max(imOverlap(:))==1)
 % If fish . . .
 else
     
-    %----NOTE----
-    % This may be a good place to use 'regionprops' instead of
-    % 'bwboundaries' to get the largest AND second largest blob 
-    
     % Filter out small objects (<15 px) found by 'regionprops'
     By2 = By2([By2.ConvexArea] > 15);
     
     % Find largest object and get is bounding box
     [~,ind2] = max([By2.ConvexArea]);
     perim2 = By2(ind2).BoundingBox;
-    
-%     % Find smaller object
-%     [~,ind3] = min([By2.ConvexArea]);
-%     
-%     % check to see if there is a prey in this frame
-%     if length(By2) > 1 
-%         % turn on indicator for prey
-%         blob.preyOn = 1;
-%         
-%         % save relevent prey data
-%         blob.xPrey      = By2(ind3).Centroid(1);
-%         blob.yPrey      = By2(ind3).Centroid(2);
-%         blob.thetaPrey  = By2(ind3).Orientation;
-%         blob.sizePrey   = By2(ind3).ConvexArea;
-%     else
-%         % turn off indicator for prey
-%         blob.preyOn = 0;
-%     end
     
     % Number of pixels that pad the blob
     pad_val = 10;

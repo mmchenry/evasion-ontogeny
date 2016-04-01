@@ -2,8 +2,8 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-03-23';
-    seqName     = 'S03';
+    batchName   = '2016-02-18';
+    seqName     = 'S02';
 end
 
 
@@ -12,11 +12,14 @@ end
 % indicator to redo midline tracking
 redoMidline = 0;
 
-% indicator for different mean image 
-newMean = 1;
+% indicator for reanalyzing prey
+redoPrey = 1;
 
 % indicator for reanalyzing eyes 
-redoEyes = 1;
+redoEyes = 0;
+
+% indicator for different mean image 
+newMean = 0;
 
 % frame to begin analysis (useful for debugging)
 startFrame = 1;
@@ -353,7 +356,12 @@ if isempty(dir([dPath filesep 'midline data.mat'])) || redoMidline
     disp(['---------- Midlines analyzed for ' expName ' in ' batchName ' ----------'])
 else
     disp('            Loading midline data')
+    
+    % NOTE: midline data is loaded by anaEyes and/or by findPrey
 end
+
+% Track Prey
+findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
 
 % Analyze eyes
 anaEyes(dPath,vPath,startFrame,redoEyes)

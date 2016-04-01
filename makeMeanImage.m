@@ -1,4 +1,4 @@
-function imMean = makeMeanImage(dPath,vPath,cal,B,newMean)
+function imMean = makeMeanImage(dPath,vPath,cal,B,newMean,newMean2)
 
 
 %% Parameters
@@ -16,7 +16,7 @@ frTot = length(B);
 a2 = dir([dPath filesep 'meanImage.tif']);
 
 % Calculate mean image if it does not exist
-if isempty(a2) && ~newMean
+if isempty(a2) && (~newMean || ~newMean2)
     
     % Define list of frame numbers, depending on max number of frames
     % requested
@@ -151,6 +151,49 @@ elseif newMean
         % ...otherwise load meanImage2
     else
         imMean = imread([dPath filesep 'meanImage2.tif']);
+    end
+    
+% create a new background image for prey, and use as mean image
+elseif newMean2
+    
+    % Look for meanImage3
+    a4 = dir([dPath filesep 'meanImage3.tif']);
+    
+    % Create meanImage2 if it does not already exist
+    if isempty(a4)
+        
+        % Read first frame of video
+        im = imread([vPath filesep B(1).filename]);
+        
+        % Select region of interest around pred
+        warning off
+        imshow(im)
+        warning on
+        title('Choose ROI around fish.')
+        
+        % Interactively find ROI
+        h = impoly;
+        roi_poly = wait(h);
+        
+        % Store results
+        tmp = getPosition(h);
+        roi.x = tmp(:,1);
+        roi.y = tmp(:,2);
+        
+        delete(h), close all;
+        
+        % create a binary mask based on the selected ROI (select fish)
+        maskFish = roipoly(im,roi.x,roi.y);
+        
+        % estimate background image
+        imMean = roifill(im,maskFish);
+        
+        % Write mean image to movie dir
+        imwrite(imMean,[dPath filesep 'meanImage3.tif'],'tif','Compression','none');
+        
+        % ...otherwise load meanImage3
+    else
+        imMean = imread([dPath filesep 'meanImage3.tif']);
     end
     
 % Load images, if present
