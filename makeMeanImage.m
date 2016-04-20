@@ -126,7 +126,7 @@ elseif newMean
         warning off
         imshow(im)
         warning on
-        title('Choose ROI around fish.')
+        title('Choose ROI around pred fish.')
         
         % Interactively find ROI
         h = impoly;
@@ -165,11 +165,11 @@ elseif newMean2
         % Read first frame of video
         im = imread([vPath filesep B(1).filename]);
         
-        % Select region of interest around pred
+        % Select region of interest around prey
         warning off
         imshow(im)
         warning on
-        title('Choose ROI around fish.')
+        title('Choose ROI around prey fish.')
         
         % Interactively find ROI
         h = impoly;

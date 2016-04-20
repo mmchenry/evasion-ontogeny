@@ -4,8 +4,8 @@ function anaData(batchName,expName)
 % that finds where turns occur and extracts data from these portions. 
 
 if nargin < 2
-    batchName   = '2016-02-17';
-    expName     = 'S01';
+    batchName   = '2016-03-11';
+    expName     = 'S02';
 end
 
 % Indicator for visualizing spline fits
@@ -68,8 +68,11 @@ dPath = [paths.data filesep batchName filesep expName];
 % Load midline data
 % load([dPath filesep 'Midline data.mat'])
 
-% Load eye data
+% Load eye & heading data
 load([dPath filesep 'eye data.mat'])
+
+% Load prey data
+% load([dPath filesep 'prey data.mat'])
 
 %% Spline fits and derivatives
 
@@ -77,10 +80,27 @@ load([dPath filesep 'eye data.mat'])
 sp.thresh = 5;              % (rad/s)
 
 % Set up spline parameters
-sp.tolHead   = 0.00005e1;
-sp.tolReye   = 0.00001e1;
-sp.tolLeye   = 0.00001e1;
+sp.tolHead   = 0.001;
+sp.tolReye   = 0.0003;
+sp.tolLeye   = 0.0003;
 
+% Set start & end frames
+frStart = 1;
+frEnd = length(eyes.t);
+frEnd = 430;
+
+% Save start & end frames in 'sp' structure
+sp.frStart = frStart;
+sp.frEnd = frEnd;
+
+% Get field names in structure 'eyes'
+fNames = fieldnames(eyes);
+
+% Extract data range specified by start & end frames
+for j=1:numel(fNames)
+    eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd);
+end
+    
 % Unwrap heading angle
 eyes.hdAngle = unwrap(eyes.hdAngle);
 
@@ -152,6 +172,8 @@ sp.lAngle_D1     = fnder(sp.lAngle,1);
 
 sp.lAngle_D2    = fnder(sp.lAngle_D1);
 
+fnplt(sp.hdAngle_D1)
+pause
 %% Prelim analysis
 
 % Roots of first derivative (angular velocity)
@@ -159,14 +181,18 @@ hd_D1roots = fnzeros(sp.hdAngle_D1);
 hd_D1roots = hd_D1roots(:);
 
 % Time points of local min and max heading angle
+
 tHd = unique(hd_D1roots);
 
 % Roots of second derivative (angular acceleration)
 hd_D2roots = fnzeros(sp.hdAngle_D2);
 hd_D2roots = hd_D2roots(:);
 
+% Get peaks and troughs of angular velocity
+peaks = abs(fnval(sp.hdAngle_D1,hd_D2roots));
+
 % Indices of peaks (and troughs) in angular velocity
-idx1 = abs(fnval(sp.hdAngle_D1,hd_D2roots)) > sp.thresh;
+idx1 = peaks > sp.thresh & peaks < sp.thresh*15;
 
 % Time points of peak angular velocity
 tAV = unique(hd_D2roots(idx1));
@@ -195,7 +221,12 @@ for k=1:length(tAV)
     
     % Time interval of turn
     D.tInt(k,1) = max([tAV_before; tHD_before]);
-    D.tInt(k,2) = min([tAV_after; tHD_after]);
+    
+    if isempty(tAV_after)
+        D.tInt(k,2) = eyes.t(end);
+    else
+        D.tInt(k,2) = min([tAV_after; tHD_after]);
+    end
     
     % Change in orientation during turn 
     D.hdDelta(k,1) = diff(fnval(sp.hdAngle,D.tInt(k,:)));
@@ -217,7 +248,7 @@ if vis
     subplot(2,1,1);
     plot(frames,unwrap(eyes.hdAngle)./pi*180,'-k');
     hold on;
-    plot(frames,gazeR,'-',frames,gazeL,'-');
+    plot(frames,gazeR./pi*180,'-',frames,gazeL./pi*180,'-');
     grid on;
     legend('Heading','R Gaze','L Gaze');
     % xlabel('Time (s)')

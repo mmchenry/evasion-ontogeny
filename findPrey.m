@@ -63,35 +63,39 @@ frames = startFrame:(1+skipFrame):endFrame;
 
 %% Initial position of prey
 
-% Load image of first video frame
-im = imread([vPath filesep a(startFrame).name]);
-
-f = figure;
-imshow(im,'InitialMagnification','fit')
-title('Zoom into prey region and press return')
-zoom on;
-
-% Wait for the most recent key to become the return/enter key
-waitfor(f,'CurrentKey','return');
-zoom reset;
-zoom off;
-
-title('Select rostrum and COM')
-[x,y,~] = ginput(2);
-hold on
-plot(x(1),y(1),'+r',x,y,'r-')
-
-% Save initial position of prey
-pPrey.x = x(2);
-pPrey.y = y(2);
-
-% Set initial prey size in pixels (rough estimate)
-pPrey.size = 20;
-
-% close figure
-close(f)
-
-clear x y
+if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
+    
+    close all;
+    
+    % Load image of first video frame
+    im = imread([vPath filesep a(startFrame).name]);
+    
+    f = figure;
+    imshow(im,'InitialMagnification','fit')
+    title('Zoom into prey region and press return')
+    zoom on;
+    
+    % Wait for the most recent key to become the return/enter key
+    waitfor(f,'CurrentKey','return');
+    zoom reset;
+    zoom off;
+    
+    title('Select rostrum and COM')
+    [x,y,~] = ginput(2);
+    hold on
+    plot(x(1),y(1),'+r',x,y,'r-')
+    
+    % Save initial position of prey
+    pPrey.x = x(2);
+    pPrey.y = y(2);
+    
+    % Set initial prey size in pixels (rough estimate)
+    pPrey.size = 20;
+    
+    % close figure
+    close(f)
+    
+    clear x y
 
 %% Make Mean image
 
@@ -102,8 +106,6 @@ imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
 
 %% Loop thru frames sequentially, finding the body midline
 
-if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
-    
     % Update status
     disp('      Analyzing frames . . .')
     
@@ -193,9 +195,7 @@ if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
         % Update status
         disp(['          Prey done for ' num2str(k) ' of ' ...
             num2str(length(frames))])
-    end
-end
-        
+    end    
 
 %% Close execution
 
@@ -207,15 +207,22 @@ disp(['     . . . completed in ' num2str(telap) ' min'])
 % Save data 'prey'
 save([dPath filesep 'prey data.mat'],'prey')
 
+else
+    disp('            Loading prey data')
+    load([dPath filesep 'prey data.mat'])
+end
+
 %% Plot results
 figure
 subplot(2,1,1)
 plot(prey.xPrey,prey.yPrey)
+hold on;
+plot(prey.xPrey(1),prey.yPrey(1),'ok')
 xlabel('x-position')
 ylabel('y-position')
 
 subplot(2,1,2)
-plot(prey.t,prey.thetaPrey * 180/pi)
+plot(prey.t,unwrap(prey.thetaPrey))
 xlabel('time (sec)')
 ylabel('Orientation (deg)')
 
@@ -247,7 +254,7 @@ roiP = roipoly(im,roi(:,1),roi(:,2));
 tVal = min([0.95 graythresh(im)+0.1]);
 
 % Threshold image
-imBW    = ~im2bw(im,tVal) & ~roiP;
+imBW    = ~im2bw(im,tVal); %& ~roiP;
 
 % Close image to get rid of small contamination
 se    = strel('diamond',5);
@@ -257,8 +264,8 @@ imBW = imclose(imBW,se);
 % imOverlap = ~roiI & imBW;
 
 % Find all blobs in binary image
-props = regionprops(imBW,'Centroid','Area','Orientation',...
-    'BoundingBox','PixelList');
+% props = regionprops(imBW,'Centroid','Area','Orientation',...
+%     'BoundingBox','PixelList');
 
 % Select blob that includes any of the previous positions
 imBW1 = bwselect(imBW,pPrey.x,pPrey.y,8);
@@ -271,20 +278,54 @@ props2 = regionprops(imBW1,'Centroid','Area','Orientation',...
 props2 = props2([props2.Area] > pPrey.size/3);
 
 % If no fish  . . .
-if isempty(props2) 
-    
-    % Manually select the position
-%     imB1 = bwselect(imBW,8);
-    
-%     props2 = regionprops(imBW1,'Centroid','Area','Orientation',...
-%     'BoundingBox');
+if isempty(props2)
 
     % Store nans
     blob.im         = nan;
     blob.roi_blob   = nan;
-    
-else
 
+% If more than one blob ... 
+elseif length(props2)>1
+    
+    % Interactively select the prey position (press return after selection)
+    imBW1 = bwselect(imBW);
+    
+    props2 = regionprops(imBW1,'Centroid','Area','Orientation',...
+    'BoundingBox', 'PixelList');
+
+% Get bounding box for prey
+    perim = props2.BoundingBox;
+
+    % Number of pixels that pad the blob
+    pad_val = 5;
+    
+    % Rectangle for blob roi: [XMIN YMIN WIDTH HEIGHT]
+    rect = [perim(1)-pad_val, perim(2)-pad_val,...
+        perim(3)+ 2*pad_val, perim(4)+2*pad_val];
+    
+    % Crop down image to prey region using 'BoundingBox' output
+    % crop image syntax: imcrop(im,[XMIN YMIN WIDTH HEIGHT])
+    imBlob = imcrop(im,rect);
+    
+    % Crop down binary image to prey region
+    imBlobBW = imcrop(imBW,rect);
+    
+    % Store prey data
+    blob.sizePrey    = props2.Area;
+    blob.xPrey       = props2.Centroid(1);
+    blob.yPrey       = props2.Centroid(2);
+    blob.thetaPrey   = props2.Orientation;
+    blob.roi_blob    = rect;
+    blob.xVals       = props2.PixelList(:,1);
+    blob.yVals       = props2.PixelList(:,2);
+    
+    % Store cropped images
+    blob.im      = imBlob;
+    blob.BW      = imBlobBW;
+
+% If exactly one blob ...
+else 
+    
 % Get bounding box for prey
     perim = props2.BoundingBox;
 

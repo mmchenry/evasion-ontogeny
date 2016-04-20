@@ -8,7 +8,7 @@ adjustOn = 0;
 
 % Tolerance for spline fits
 tol.head = 0.005e2;         % default: tol.head = 1e2
-tol.rost = 0.250e1;         % default: tol.rost = 0.5e1
+tol.rost = 0.0350e1;         % default: tol.rost = 0.5e1
 
 % Target number of pixels for eye area
 eye_area = 100;
@@ -48,9 +48,11 @@ pEye.L.tVal = 40;
 
 %% Get Mean image
 
-newMean = 1;
-
-imMean = makeMeanImage(dPath,vPath,[],B,newMean,0);
+if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
+    newMean = 1;
+    
+    imMean = makeMeanImage(dPath,vPath,[],B,newMean,0);
+end
 
 
 %% Fit splines to head and rostrum
@@ -60,10 +62,10 @@ imMean = makeMeanImage(dPath,vPath,[],B,newMean,0);
 warning off
 
 % intial smoothing of data (use when midline data has a few errors)
-% mid.xRost = smooth(mid.xRost,0.005,'rloess');
-% mid.yRost = smooth(mid.yRost,0.005,'rloess');
-mid.xHead = smooth(mid.xHead,0.020,'rloess');
-mid.yHead = smooth(mid.yHead,0.020,'rloess');
+mid.xRost = smooth(mid.xRost,0.005,'rloess');
+mid.yRost = smooth(mid.yRost,0.005,'rloess');
+mid.xHead = smooth(mid.xHead,0.040,'rloess');
+mid.yHead = smooth(mid.yHead,0.040,'rloess');
 
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
