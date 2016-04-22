@@ -5,11 +5,11 @@ function anaData(batchName,expName)
 
 if nargin < 2
     batchName   = '2016-03-14';
-    expName     = 'S01';
+    expName     = 'S08';
 end
 
 % Indicator for visualizing spline fits
-vis = 1;
+vis = 0;
 
 %% Path definitions
 
@@ -65,22 +65,67 @@ load([dPath filesep 'eye data.mat'])
 % Load prey data
 load([dPath filesep 'prey data.mat'])
 
-%% Load/Create Pred turning data
+%% Take care of NaNs
 
-% check for (pred) turn data, if it exists, load it
+% indices of digitized frames
+indxPrey = find(isfinite(prey.xPrey));
+indxPred = find(isfinite(mid.xRost));
+
+% limited by Prey data; choose pred data to coincide with Prey
+
+% indices for first digitized frame in common
+ind1 = max(indxPrey(1),indxPred(1));
+
+% index for last Prey frame
+ind2 = max(indxPrey);
+
+%% Load/Create Pred turning data parameters
+
+% Check for (pred) turn data parameters, if they exist, load
 if ~isempty(dir([dPath filesep 'turn data.mat']))
     
     load([dPath filesep 'turn data.mat'])
     
-    % Set start & end frames
-    frStart = sp.frStart;
-    frEnd = sp.frEnd;
+    % Check if start & end frames have been set
+    if isfield(sp,'frStart')
+        
+        % Set start & end frames
+        frStart = max(sp.frStart,ind1);
+        frEnd   = min(sp.frEnd,ind2);
+        
+        % if not...set them
+    else
+        frStart = max(1,ind1);
+        frEnd   = min(length(eyes.t),ind2);
+        
+        sp.frStart = frStart;
+        sp.frEnd = frEnd;
+    end
+    
+    % Put all tolerances into subfield 'tol'
+    if isfield(sp,'tolHead')
+        
+        % save tolerance values into 'tol' field
+        sp.tol.Head = sp.tolHead;
+        sp.tol.Reye = sp.tolReye;
+        sp.tol.Leye = sp.tolLeye;
+        
+        sp = rmfield(sp,{'tolHead','tolReye','tolLeye'});
+    else
+    end
+    
+    % Get field names in structure 'eyes'
+    fNames = fieldnames(eyes);
+    
+    % Extract eye/heading data range specified by start & end frames
+    for j=1:numel(fNames)
+        eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
+    end
     
     % otherwise...create it
 else
-    %% Pred Spline fits and derivatives
     
-    % Threshold value for peak angular velocity
+    % Set threshold value for peak angular velocity
     sp.thresh = 5;              % (rad/s)
     
     % Set up spline parameters
@@ -89,9 +134,9 @@ else
     sp.tol.Leye   = 0.0009;
     
     % Set start & end frames
-    frStart = 1;
-    frEnd = length(eyes.t);
-    % frEnd = 1208;
+    frStart = max(1,ind1);
+    frEnd   = min(length(eyes.t),ind2);
+    % frEnd = mind(ind2,1208);
     
     % Save start & end frames in 'sp' structure
     sp.frStart = frStart;
@@ -100,98 +145,104 @@ else
     % Get field names in structure 'eyes'
     fNames = fieldnames(eyes);
     
-    % Extract data range specified by start & end frames
+    % Extract eye/heading data range specified by start & end frames
     for j=1:numel(fNames)
         eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
     end
     
-    % Unwrap heading angle
-    eyes.hdAngle = unwrap(eyes.hdAngle);
-    
-    % Compute gaze angle (world coordinates)
-    gazeR = ((eyes.hdAngle + eyes.rAngle) - pi/2);
-    gazeL = ((eyes.hdAngle + eyes.lAngle) + pi/2);
-    
-    % Spline fit heading angle
-    sp.hdAngle  = spaps(eyes.t,eyes.hdAngle,sp.tol.Head);
-    
-    % Spline fit right eye angle
-    sp.rAngle   = spaps(eyes.t,eyes.rAngle,sp.tol.Reye);
-    
-    % Spline fit left eye angle
-    sp.lAngle   = spaps(eyes.t,eyes.lAngle,sp.tol.Leye);
-    
-    % Spline fit gaze angles
-    sp.gazeR    = spaps(eyes.t,gazeR,sp.tol.Head);
-    sp.gazeL    = spaps(eyes.t,gazeL,sp.tol.Head);
-    
-    
-    % Check accurary of spline fits
-    if vis
-        
-        close all;
-        
-        % Generate smooth heading, and eye angle values
-        hdAngle     = fnval(sp.hdAngle,eyes.t);
-        rAngle      = fnval(sp.rAngle,eyes.t);
-        lAngle      = fnval(sp.lAngle,eyes.t);
-        
-        figure,
-        ax1 = subplot(2,1,1);
-        % Plot heading angle
-        plot(ax1,eyes.t,eyes.hdAngle * 180/pi,'.')
-        hold on
-        % Plot spline fit
-        plot(ax1,eyes.t,hdAngle * 180/pi,'-k','LineWidth',2)
-        hold off;
-        
-        ax2 = subplot(2,1,2);
-        % Plot right eye angle
-        plot(ax2,eyes.t,eyes.rAngle * 180/pi,'.')
-        hold on
-        % Plot left angle
-        plot(ax2,eyes.t,eyes.lAngle * 180/pi,'.')
-        % Plot spline fits
-        plot(ax2,eyes.t,rAngle * 180/pi,'LineWidth',2)
-        plot(ax2,eyes.t,lAngle * 180/pi,'LineWidth',2)
-        hold off
-        
-        beep
-        pause
-    end
-    
-    % Compute angular velocity (rad/s) & accleration of heading
-    sp.hdAngle_D1    = fnder(sp.hdAngle,1);
-    % hdAngle_D       = fnval(sp.hdAngle_D,eyes.t);
-    
-    sp.hdAngle_D2   = fnder(sp.hdAngle_D1);
-    
-    % Compute angular velocity (rad/s) & accleration of right eye angle
-    sp.rAngle_D1     = fnder(sp.rAngle,1);
-    % rAngle_D        = fnval(sp.rAngle_D,eyes.t);
-    
-    sp.rAngle_D2    = fnder(sp.rAngle_D1);
-    
-    % Compute angular velocity (rad/s) & accleration of left eye angle
-    sp.lAngle_D1     = fnder(sp.lAngle,1);
-    % lAngle_D        = fnval(sp.lAngle_D,eyes.t);
-    
-    sp.lAngle_D2    = fnder(sp.lAngle_D1);
-    
-    fnplt(sp.hdAngle_D1)
-    pause
-    
 end
 
-%% Prey & Pred Position Data Splines
+%% Pred Spline fits and derivatives
 
-sp.tol.Prey = 1;
+% Unwrap heading angle
+eyes.hdAngle = unwrap(eyes.hdAngle);
+
+% Compute gaze angle (world coordinates)
+gazeR = ((eyes.hdAngle + eyes.rAngle) - pi/2);
+gazeL = ((eyes.hdAngle + eyes.lAngle) + pi/2);
+
+% Spline fit heading angle
+sp.hdAngle  = spaps(eyes.t,eyes.hdAngle,sp.tol.Head);
+
+% Spline fit right eye angle
+sp.rAngle   = spaps(eyes.t,eyes.rAngle,sp.tol.Reye);
+
+% Spline fit left eye angle
+sp.lAngle   = spaps(eyes.t,eyes.lAngle,sp.tol.Leye);
+
+% Spline fit gaze angles
+sp.gazeR    = spaps(eyes.t,gazeR,sp.tol.Head);
+sp.gazeL    = spaps(eyes.t,gazeL,sp.tol.Head);
+
+
+% Check accurary of spline fits
+if vis
+    
+    close all;
+    
+    % Generate smooth heading, and eye angle values
+    hdAngle     = fnval(sp.hdAngle,eyes.t);
+    rAngle      = fnval(sp.rAngle,eyes.t);
+    lAngle      = fnval(sp.lAngle,eyes.t);
+    
+    figure,
+    ax1 = subplot(2,1,1);
+    % Plot heading angle
+    plot(ax1,eyes.t,eyes.hdAngle * 180/pi,'.')
+    hold on
+    % Plot spline fit
+    plot(ax1,eyes.t,hdAngle * 180/pi,'-k','LineWidth',2)
+    hold off;
+    
+    ax2 = subplot(2,1,2);
+    % Plot right eye angle
+    plot(ax2,eyes.t,eyes.rAngle * 180/pi,'.')
+    hold on
+    % Plot left angle
+    plot(ax2,eyes.t,eyes.lAngle * 180/pi,'.')
+    % Plot spline fits
+    plot(ax2,eyes.t,rAngle * 180/pi,'LineWidth',2)
+    plot(ax2,eyes.t,lAngle * 180/pi,'LineWidth',2)
+    hold off
+    
+    beep
+    pause
+end
+
+% Compute angular velocity (rad/s) & accleration of heading
+sp.hdAngle_D1    = fnder(sp.hdAngle,1);
+% hdAngle_D       = fnval(sp.hdAngle_D,eyes.t);
+
+sp.hdAngle_D2   = fnder(sp.hdAngle_D1);
+
+% Compute angular velocity (rad/s) & accleration of right eye angle
+sp.rAngle_D1     = fnder(sp.rAngle,1);
+% rAngle_D        = fnval(sp.rAngle_D,eyes.t);
+
+sp.rAngle_D2    = fnder(sp.rAngle_D1);
+
+% Compute angular velocity (rad/s) & accleration of left eye angle
+sp.lAngle_D1     = fnder(sp.lAngle,1);
+% lAngle_D        = fnval(sp.lAngle_D,eyes.t);
+
+sp.lAngle_D2    = fnder(sp.lAngle_D1);
+
+if vis
+    fnplt(sp.hdAngle_D1)
+    pause
+end
+
+
+%% Prey & Pred Position Data Splines 
+
+% Set spline tolerance for prey & pred position data
+sp.tol.Prey = 10;
 sp.tol.Pred = 1.5;
 
 % Prey field names
 fNames = fieldnames(prey);
 
-% Extract data range specified by start & end frames
+% Extract prey data range specified by start & end frames
 for j=1:numel(fNames)
     prey.(fNames{j}) = prey.(fNames{j})(frStart:frEnd,:);
 end
@@ -199,7 +250,7 @@ end
 % Mid field names
 fNames = fieldnames(mid);
 
-% Extract data range specified by start & end frames
+% Extract pred data range specified by start & end frames
 for j=1:numel(fNames)
     mid.(fNames{j}) = mid.(fNames{j})(frStart:frEnd,:);
 end
@@ -216,11 +267,19 @@ sp.yRost  = spaps(mid.t,mid.yRost,sp.tol.Pred);
 
 %% Bearing Angle
 
+% Values for x-coordinate
+xPrey_val = fnval(sp.xPrey,prey.t);
+xPred_val = fnval(sp.xRost,mid.t);
+
+% Values for y-coordinate (transform origin to bottom-left)
+yPrey_val = 1024 - fnval(sp.yPrey,prey.t);
+yPred_val = 1024 - fnval(sp.yRost,mid.t);
+
 % x-coordinate of vector (Range/baseline vector) from pred Rost to prey COM
-x_R = fnval(sp.xPrey,prey.t) - fnval(sp.xRost,mid.t); 
+x_R = xPrey_val - xPred_val; 
 
 % y-coordinate of vector (Range/baseline vector) from pred Rost to prey COM
-y_R = 1024 - (fnval(sp.yPrey,prey.t) - fnval(sp.yRost,mid.t));
+y_R = yPrey_val - yPred_val;
 
 % Direction of range/baseline vector
 theta_R = atan2(y_R, x_R);
@@ -230,6 +289,19 @@ rangeMag = sqrt(sum([x_R, y_R].^2,2));
 
 % Bearing Angle
 phi = theta_R - fnval(sp.hdAngle,eyes.t);
+
+% Check angles
+if 1
+    subplot(3,1,1), plot(eyes.t,phi*180/pi)
+    ylabel('Bearing Angle (deg)')
+    
+    subplot(3,1,2), fnplt(fncmb(sp.hdAngle,180/pi))
+    ylabel('Predator Heading Angle (deg)')
+    
+    subplot(3,1,3), plot(eyes.t,theta_R*180/pi)
+    ylabel('Direction of Range vector (deg)')
+    xlabel('time (s)')
+end
 
 %% Prelim analysis
 
