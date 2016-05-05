@@ -2,8 +2,8 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-04-12';
-    seqName     = 'S01';
+    batchName   = '2016-04-14';
+    seqName     = 'S04';
 end
 
 
@@ -16,13 +16,13 @@ redoMidline = 0;
 redoPrey = 0;
 
 % indicator for reanalyzing eyes 
-redoEyes = 0;
+redoEyes = 1;
 
 % indicator for different mean image 
 newMean = 1;
 
 % frame to begin analysis (useful for debugging)
-startFrame = 90;
+startFrame = 1;
 
 % Include calibration
 includeCalibration = 0;

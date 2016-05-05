@@ -8,7 +8,14 @@ adjustOn = 0;
 
 % Tolerance for spline fits
 tol.head = 0.005e2;         % default: tol.head = 1e2
-tol.rost = 0.0350e1;         % default: tol.rost = 0.5e1
+tol.rost = 0.035e1;         % default: tol.rost = 0.5e1
+
+% Span of data to consider for initial smoothing
+tol.midRost = 0.005;
+tol.midHead = 0.01;
+
+% Store 'tol' field in 'eyes' structure
+eyes.tol = tol;
 
 % Target number of pixels for eye area
 eye_area = 100;
@@ -62,10 +69,10 @@ end
 warning off
 
 % intial smoothing of data (use when midline data has a few errors)
-mid.xRost = smooth(mid.xRost,0.005,'rloess');
-mid.yRost = smooth(mid.yRost,0.005,'rloess');
-mid.xHead = smooth(mid.xHead,0.040,'rloess');
-mid.yHead = smooth(mid.yHead,0.040,'rloess');
+mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
+mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
+mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
+mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
 
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
@@ -92,6 +99,8 @@ if 1
     ylabel('Head y')
     xlabel('Head x')   
 end
+
+pause
 
 % Cranial length
 cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
@@ -120,7 +129,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     roi.yCoordL = [roi.yL roi.yL roi.yL+roi.h roi.yL+roi.h roi.yL]';
     
     % radius for circle around eyes
-    roi.rEye    = cran_len*0.36;     % default = 0.35
+    roi.rEye    = cran_len*0.35;     % default = 0.35
     
     % Dimensions of frame around head
     headIMdim = [2*cran_len 1.75*cran_len];
@@ -232,16 +241,16 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         [roi.xCoordG,roi.yCoordG] = local_to_global(tform,roi.xCoordL,roi.yCoordL);
         
         % Head image (cropped and aligned to horizontal)
-        [imHead,tform1,anglCor] = giveHeadIM(im,sp,roi,i,adjustOn,pEye.tVal);
+        [imHead,tform1,tform2,anglCor] = giveHeadIM(im,sp,roi,i,adjustOn,pEye.tVal);
         
         % NOTE: tform1 does not give the total rotation angle to obtain
         % 'imHead' from 'im'
 
         % Transformation object to stablize head wrt imHead0
-        tform2 = imregtform(imHead,imHead0,'rigid',optimizer,metric);
+        tform3 = imregtform(imHead,imHead0,'rigid',optimizer,metric);
          
         % Stablize head image
-        imStable = imwarp(imHead,tform2,'OutputView',imref2d(size(imHead0)));
+        imStable = imwarp(imHead,tform3,'OutputView',imref2d(size(imHead0)));
         
         % Remove strips of black
         imStable(~im2bw(imStable,1-254/255)) = 255;        
@@ -249,6 +258,10 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % Get eye coordinate data
         eL = give_eye(imStable,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
         eR = give_eye(imStable,pEye.R,eyeArea.Reye,bk_clr,roi.rEye);
+        
+        % Compute eye position in global coordinates (output is 1x3)
+        Reye = [eR.xCent, eR.yCent, 1]*tform3.T*tform2.T*tform1.T;
+        Leye = [eL.xCent, eL.yCent, 1]*tform3.T*tform2.T*tform1.T;
         
         % Transformation object to stabilize eyes
         if i == startFrame
@@ -297,7 +310,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         eyes.angl1(i,1) = atan2(tform1.T(1,2),tform1.T(1,1)) + anglCor;
         
         % Head angle correction from image registration (imStable)
-        eyes.angl2(i,1) = atan2(tform2.T(1,2),tform2.T(1,1));
+        eyes.angl2(i,1) = atan2(tform3.T(1,2),tform3.T(1,1));
         
         % Head angle in world coordinates
         if sign(eyes.angl1)>=0 
@@ -311,6 +324,12 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % Eye angles                
         eyes.rAngle(i,1) = atan2(eR.tform.T(1,2),eR.tform.T(1,1)) + rAng0;
         eyes.lAngle(i,1) = atan2(eL.tform.T(1,2),eL.tform.T(1,1)) + lAng0;
+        
+        % Eye position in global coordinates
+        eyes.xReye(i,1) = Reye(1);
+        eyes.yReye(i,1) = Reye(2);
+        eyes.xLeye(i,1) = Leye(1);
+        eyes.yLeye(i,1) = Leye(2); 
         
         % Eye data for next iteration
         pEye.R = eR;
@@ -372,7 +391,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
             
             pause(0.01);
         end
-        clear tform tform2 tform3
+        clear tform tform1 tform2 tform3
      
         % Update status
         disp(['        Eye masks done for ' num2str(i) ' of ' ...
@@ -396,14 +415,15 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         
         % Visualize in global FOR
         if 0
+            figure(5)
             imshow(im,'InitialMagnification','fit')
-            hold on           
-            plot(eyes(i).R.x,eyes(i).R.y,'g-',eyes(i).L.x,eyes(i).L.y,'y-')           
+            hold on     
+            plot(Reye(1),Reye(2),'go',Leye(1),Leye(2),'yo')           
             hold off           
             pause(0.1)
         end
         
-        clear eR eL
+        clear eR eL Reye Leye
     end
     
     eyes.t = mid.t;
@@ -493,7 +513,7 @@ if 0
 end
 
 
-function [imHead2,tform1,anglCor] = giveHeadIM(im,sp,roi,cFrame,levels,tVal)
+function [imHead2,tform1,tform2,anglCor] = giveHeadIM(im,sp,roi,cFrame,levels,tVal)
 % INPUTS: 
 %       - im  = original video frame 
 %       - sp  = spline fitted head & rostrum data
@@ -672,7 +692,7 @@ while proceed && (tVal < max_tVal)
             max(ReyeBlob.Area,LeyeBlob.Area);
         
         % ... and check that they are of similar size
-        if sizeRatio < 0.5
+        if sizeRatio < 0.6
             % increase threshold value
             tVal = tVal + 1;
         else
