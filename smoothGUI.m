@@ -15,7 +15,7 @@ function sp = smoothGUI(sp,varNames,data)
 %% Interactively choose smoothing tolerance
 
 % Instructions
-disp('Selecting period before and after response')
+disp('Selecting smoothing tolerance')
 disp('     up: more smoothing');
 disp('     down: less smoothing');
 disp('     right: increase threshold');
@@ -39,12 +39,12 @@ for j = 1:length(varNames)
     % Name of current variable
     currVar = varNames{j};
      
-    % Check that data and smoothing tolerance match
-    if ~strcmp(currVar,dataNames{j})
-        disp(' The tolerance parameter does not match the data')
-        return
-    else
-    end
+%     % Check that data and smoothing tolerance match
+%     if ~strcmp(currVar,dataNames{j})
+%         disp(' The tolerance parameter does not match the data')
+%         return
+%     else
+%     end
     
     % Initial smoothing tolerance for current variable
     spTol = sp.tol.(currVar);
@@ -75,6 +75,7 @@ for j = 1:length(varNames)
         % Plot raw data
         plot(t,d,'.');
         hold on;
+        legend(num2str(spTol))
         
         % Plot smooth data
         fnplt(spCurr)

@@ -4,12 +4,14 @@ function anaData(batchName,expName)
 % that finds where turns occur and extracts data from these portions. 
 
 if nargin < 2
-    batchName   = '2016-03-14';
-    expName     = 'S01';
+    batchName   = '2016-04-14';
+    expName     = 'S04';
 end
 
 % Indicator for visualizing spline fits
 vis = 0;
+
+close all;
 
 %% Path definitions
 
@@ -79,6 +81,7 @@ ind1 = max(indxPrey(1),indxPred(1));
 
 % index for last Prey frame
 ind2 = max(indxPrey);
+% ind2 = 865;
 
 %% Load/Create Pred turning data parameters
 
@@ -106,10 +109,10 @@ if ~isempty(dir([dPath filesep 'turn data.mat']))
     % Put all tolerances into subfield 'tol'
     if isfield(sp,'tolHead')
         
-        % save tolerance values into 'tol' field
-        sp.tol.Head = sp.tolHead;
-        sp.tol.Reye = sp.tolReye;
-        sp.tol.Leye = sp.tolLeye;
+%         % save tolerance values into 'tol' field
+%         sp.tol.Head = sp.tolHead;
+%         sp.tol.Reye = sp.tolReye;
+%         sp.tol.Leye = sp.tolLeye;
         
         sp = rmfield(sp,{'tolHead','tolReye','tolLeye'});
     else
@@ -120,36 +123,37 @@ if ~isempty(dir([dPath filesep 'turn data.mat']))
     
     % Extract eye/heading data range specified by start & end frames
     for j=1:numel(fNames)
-        eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
+        if ~strcmp(fNames{j},'tol')
+            eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
+        else
+        end
     end
     
-%     % otherwise...create it
-% else
+    % otherwise...create it
+else
 %     
-%     % Set threshold value for peak angular velocity
-%     sp.thresh = 5;              % (rad/s)
-%     
-%     % Set up spline parameters
-%     sp.tol.Head   = 0.0005;
-%     sp.tol.Reye   = 0.0001;
-%     sp.tol.Leye   = 0.0001;
-%     
-%     % Set start & end frames
-%     frStart = max(1,ind1);
-%     frEnd   = min(length(eyes.t),ind2);
+    % Set threshold value for peak angular velocity
+    sp.thresh = 5;              % (rad/s)
+
+    % Set start & end frames
+    frStart = max(1,ind1);
+    frEnd   = min(length(eyes.t),ind2);
 %     % frEnd = min(ind2,1208);
-%     
-%     % Save start & end frames in 'sp' structure
-%     sp.frStart = frStart;
-%     sp.frEnd = frEnd;
-%     
-%     % Get field names in structure 'eyes'
-%     fNames = fieldnames(eyes);
-%     
-%     % Extract eye/heading data range specified by start & end frames
-%     for j=1:numel(fNames)
-%         eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
-%     end
+   
+    % Save start & end frames in 'sp' structure
+    sp.frStart = frStart;
+    sp.frEnd = frEnd;
+    
+    % Get field names in structure 'eyes'
+    fNames = fieldnames(eyes);
+    
+    % Extract eye/heading data range specified by start & end frames
+    for j=1:numel(fNames)
+        if ~strcmp(fNames{j},'tol')
+            eyes.(fNames{j}) = eyes.(fNames{j})(frStart:frEnd,:);
+        else
+        end
+    end
     
 end
 
@@ -184,7 +188,10 @@ end
 sp.time    = eyes.t;
 
 % Call interactive smoothing GUI to obtain smoothing tolerances
-if ~isfield(sp,'tolSet') 
+if ~isfield(sp,'tolSet') || 0
+    
+    % Clear out old 'tol' subfield
+    sp = rmfield(sp,'tol');
     
     % Set up initial spline parameters
     sp.tol.Head = 0.0005;
@@ -192,16 +199,18 @@ if ~isfield(sp,'tolSet')
     sp.tol.Leye = 0.0001;
     sp.tol.Prey = 10;
     sp.tol.Pred = 1.5;
+    sp.tol.Eyes = 5;
     
     % Get tolerance parameter names
     varNames = fieldnames(sp.tol);
     
     % Data structure for splines
-    data.Head = eyes.hdAngle;
-    data.Reye = eyes.rAngle;
-    data.Leye = eyes.lAngle;
-    data.Prey = prey.xPrey;
-    data.Pred = mid.xRost;
+    data.Head  = eyes.hdAngle;
+    data.Reye  = eyes.rAngle;
+    data.Leye  = eyes.lAngle;
+    data.Prey  = prey.xPrey;
+    data.Pred  = mid.xRost;
+    data.xReye = eyes.xReye;
     
     sp = smoothGUI(sp,varNames,data);
 else
@@ -223,6 +232,12 @@ sp.lAngle   = spaps(eyes.t,eyes.lAngle,sp.tol.Leye);
 % Spline fit gaze angles
 sp.gazeR    = spaps(eyes.t,gazeR,sp.tol.Head);
 sp.gazeL    = spaps(eyes.t,gazeL,sp.tol.Head);
+
+% Spline fit eye positions
+sp.xReye    = spaps(eyes.t,eyes.xReye,sp.tol.Eyes);
+sp.yReye    = spaps(eyes.t,eyes.yReye,sp.tol.Eyes);
+sp.xLeye    = spaps(eyes.t,eyes.xLeye,sp.tol.Eyes);
+sp.yLeye    = spaps(eyes.t,eyes.yLeye,sp.tol.Eyes);
 
 % Check accurary of spline fits
 if vis
@@ -294,6 +309,9 @@ sp.yRost  = spaps(mid.t,mid.yRost,sp.tol.Pred);
 
 % xRost       = fnval(sp.xRost,mid.t);
 
+% Save spline and turning data up to this point
+save([dPath filesep 'turn data.mat'],'sp', 'D')
+
 %% Bearing Angle
 
 % Values for x-coordinate
@@ -340,74 +358,79 @@ sp.alpha    = spaps(prey.t,alpha_R,sp.tol.Head);
 
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
-% Roots of first derivative (angular velocity)
-hd_D1roots = fnzeros(sp.hdAngle_D1);
-hd_D1roots = hd_D1roots(:);
-
-% Time points for local min and max of heading angle
-tHd = unique(hd_D1roots);
-
-% Roots of second derivative (angular acceleration)
-hd_D2roots = fnzeros(sp.hdAngle_D2);
-hd_D2roots = hd_D2roots(:);
-
-% Get peaks and troughs of angular velocity
-peaks = abs(fnval(sp.hdAngle_D1,hd_D2roots));
-
-% Indices of peaks (and troughs) in angular velocity
-idx1 = peaks > sp.thresh & peaks < sp.thresh*15;
-
-% Time points of peak angular velocity
-tAV = unique(hd_D2roots(idx1));
-
-% Values of peak angular velocity
-hdAngle_max = fnval(sp.hdAngle_D1,tAV);
-
-% Store max angular velocity
-D.hdAngle_maxAV = hdAngle_max;
-
-% Total number of turns
-numTurns    = length(tAV);
-D.numTurns  = numTurns;
-
-% For each peak in angular velocity, find the time interval for the turn
-for k=1:numTurns
+% If intervals have not been set...
+if ~isfield(D,'intSet')
     
-    % Time points of zeros before peak angular velocity
-    tAV_before = hd_D2roots(hd_D2roots < tAV(k));
+    % Clear old data structure D
+    clear D
     
-    % Time points of zeros after peak angular velocity
-    tAV_after = hd_D2roots(hd_D2roots > tAV(k));
+    % Roots of first derivative (angular velocity)
+    hd_D1roots = fnzeros(sp.hdAngle_D1);
+    hd_D1roots = hd_D1roots(:);
     
-    % Time points of local max/min heading angle before peak AV
-    tHD_before = hd_D1roots(hd_D1roots < tAV(k));
+    % Time points for local min and max of heading angle
+    tHd = unique(hd_D1roots);
     
-    % Time points of local max/min heading angle after peak AV
-    tHD_after = hd_D1roots(hd_D1roots > tAV(k));
+    % Roots of second derivative (angular acceleration)
+    hd_D2roots = fnzeros(sp.hdAngle_D2);
+    hd_D2roots = hd_D2roots(:);
     
-    % Left endpoint of time interval of turn
-    D.tInt(k,1) = max([tAV_before; tHD_before]);
+    % Get peaks and troughs of angular velocity
+    peaks = abs(fnval(sp.hdAngle_D1,hd_D2roots));
     
-    % Right endpoint of time interval of turn
-    if isempty(tAV_after)
-        D.tInt(k,2) = eyes.t(end);
-    else
-        D.tInt(k,2) = min([tAV_after; tHD_after]);
+    % Indices of peaks (and troughs) in angular velocity
+    idx1 = peaks > sp.thresh & peaks < sp.thresh*15;
+    
+    % Time points of peak angular velocity
+    tAV = unique(hd_D2roots(idx1));
+    
+    % Values of peak angular velocity
+    hdAngle_max = fnval(sp.hdAngle_D1,tAV);
+    
+    % Store max angular velocity
+    D.hdAngle_maxAV = hdAngle_max;
+    
+    % Total number of turns
+    numTurns    = length(tAV);
+    D.numTurns  = numTurns;
+    
+    % For each peak in angular velocity, find the time interval for the turn
+    for k=1:numTurns
+        
+        % Time points of zeros before peak angular velocity
+        tAV_before = hd_D2roots(hd_D2roots < tAV(k));
+        
+        % Time points of zeros after peak angular velocity
+        tAV_after = hd_D2roots(hd_D2roots > tAV(k));
+        
+        % Time points of local max/min heading angle before peak AV
+        tHD_before = hd_D1roots(hd_D1roots < tAV(k));
+        
+        % Time points of local max/min heading angle after peak AV
+        tHD_after = hd_D1roots(hd_D1roots > tAV(k));
+        
+        % Left endpoint of time interval of turn
+        D.tInt(k,1) = max([tAV_before; tHD_before; prey.t(1)]);
+        
+        % Right endpoint of time interval of turn
+        if isempty(tAV_after)
+            D.tInt(k,2) = eyes.t(end);
+        else
+            D.tInt(k,2) = min([tAV_after; tHD_after]);
+        end
+        
+        clear tAV_before tAV_after tHD_before tHD_after
     end
-    
-    clear tAV_before tAV_after tHD_before tHD_after
 end
 
 %% Interactive GUI for time intervals corrections
 
-%---GUI for adjusting time intervals will be called here.
-
 % Call interactive time intervals GUI
-if ~isfield(D,'intSet')
+if ~isfield(D,'intSet') 
     D = intervalsGUI(D,numTurns,sp.hdAngle);
     
 else
-    % intervals have already been adjust...continue
+    % intervals have already been adjusted...continue
 end
 
 %% Prior time intervals
@@ -424,28 +447,34 @@ D.priorInt(2:numTurns,1) = D.tInt(1:numTurns-1,2);
 % Right endpoints of prior interval
 D.priorInt(:,2) = D.tInt(:,1);
 
-
-
-%% Compute changes in angles
+%% Compute changes in angles & absolute values before turn
 
 % Change in orientation during turn
-hdDelta     = diff(fnval(sp.hdAngle,D.tInt),1,2);
-D.hdDelta   = hdDelta;
+hdDelta         = diff(fnval(sp.hdAngle,D.tInt),1,2);
+D.hdDelta       = hdDelta;
 
 % Change in gaze angle in prior interval
-gazeDelta   = diff(fnval(sp.gazeR,D.priorInt),1,2);
-D.gazeDelta = gazeDelta;
+gazeDelta       = diff(fnval(sp.gazeR,D.priorInt),1,2);
+D.gazeDelta     = gazeDelta;
 
 % Change in bearing angle in prior interval
-bearDelta = diff(fnval(sp.bearAngl,D.priorInt),1,2);
-D.bearDelta = bearDelta;
+bearDelta       = diff(fnval(sp.bearAngl,D.priorInt),1,2);
+D.bearDelta     = bearDelta;
 
 % Change in range vector direction (alpha) in prior interval
-alphaDelta = diff(fnval(sp.alpha,D.priorInt),1,2);
-D.alphaDelta = alphaDelta;
+alphaDelta      = diff(fnval(sp.alpha,D.priorInt),1,2);
+D.alphaDelta    = alphaDelta;
+
+% Compute bearing angle at start of turn
+bearingPre      = fnval(sp.bearAngl,D.tInt(:,1));
+D.bearingPre    = bearingPre;
+
+% Compute angular velocity (derivative of bearing) at start of turn
+bearD1Pre       = fnval((fnder(sp.bearAngl)),D.tInt(:,1));
+D.bearD1Pre     = bearD1Pre;
 
 % matrix of all change in angle data
-allData = [hdDelta gazeDelta bearDelta alphaDelta];
+allData = [hdDelta gazeDelta bearDelta alphaDelta bearingPre bearD1Pre];
 
 %% Save Data
 
@@ -500,6 +529,7 @@ if vis
 
 end
 
+close all;
 
 disp([batchName, '; exp ', expName])
 
