@@ -4,8 +4,8 @@ function anaData(batchName,expName)
 % that finds where turns occur and extracts data from these portions. 
 
 if nargin < 2
-    batchName   = '2016-04-14';
-    expName     = 'S04';
+    batchName   = '2016-02-18';
+    expName     = 'S01';
 end
 
 % Indicator for visualizing spline fits
@@ -56,6 +56,12 @@ paths.thumb  = [root filesep 'Thumbnail video'];
 % Directory for current data
 dPath = [paths.data filesep batchName filesep expName];
 
+% Directory for current video
+vPath = [paths.rawvid filesep batchName filesep expName];
+
+% Directory for storing video images
+tPath = [paths.thumb filesep batchName filesep expName];
+
 %% Load data
 
 % Load predator midline data
@@ -67,6 +73,9 @@ load([dPath filesep 'eye data.mat'])
 % Load prey data
 load([dPath filesep 'prey data.mat'])
 
+% Load video filenames 
+a = dir([vPath filesep 'exp*']);
+
 %% Take care of NaNs
 
 % indices of digitized frames
@@ -77,7 +86,7 @@ indxPred = find(isfinite(mid.xRost));
 
 % indices for first digitized frame in common
 ind1 = max(indxPrey(1),indxPred(1));
-% ind1 = 90;
+% ind1 = 40;
 
 % index for last Prey frame
 ind2 = max(indxPrey);
@@ -132,7 +141,7 @@ if ~isempty(dir([dPath filesep 'turn data.mat']))
     % otherwise...create it
 else
 %     
-    % Set threshold value for peak angular velocity
+    % Set initial threshold value for peak angular velocity
     sp.thresh = 5;              % (rad/s)
 
     % Set start & end frames
@@ -160,9 +169,21 @@ end
 % Unwrap heading angle
 eyes.hdAngle = unwrap(eyes.hdAngle);
 
-% Compute gaze angle (world coordinates)
-gazeR = ((eyes.hdAngle + eyes.rAngle) - pi/2);
-gazeL = ((eyes.hdAngle + eyes.lAngle) + pi/2);
+% Eye angles (world coordinates: [-pi pi])
+ReyeG = (eyes.hdAngle + eyes.rAngle);
+LeyeG = (eyes.hdAngle + eyes.lAngle);
+
+% Get negative angles
+negR = ReyeG < 0;
+negL = LeyeG < 0;
+
+% Rewrite eye angles to be in [0 2Pi]
+ReyeG(negR) = 2*pi + ReyeG(negR);
+LeyeG(negL) = 2*pi + LeyeG(negL);
+
+% Compute gaze angle (world coordinates: [0 2Pi])
+gazeR = (ReyeG - pi/2);
+gazeL = (LeyeG + pi/2);
 
 %% Extract relevant Prey and Pred position data
 
@@ -334,8 +355,11 @@ alpha_R = atan2(y_R, x_R);
 % Magnitude of range/baseline vector (distance between prey & pred)
 rangeMag = sqrt(sum([x_R, y_R].^2,2));
 
+% Heading angle values
+headAngle = unwrap(fnval(sp.hdAngle,eyes.t));
+
 % Bearing Angle
-phi = alpha_R - fnval(sp.hdAngle,eyes.t);
+phi = unwrap(alpha_R) - headAngle;
 
 % Check angles
 if 0
@@ -353,8 +377,53 @@ end
 % Spline fit bearing angles (with heading tolerance)
 sp.bearAngl = spaps(prey.t,phi,sp.tol.Head);
 
-% Spline fit range vector direction (alpha)
+% Spline fit range vector direction (alpha; aka: absolute prey angle)
 sp.alpha    = spaps(prey.t,alpha_R,sp.tol.Head);
+
+% Save distance between prey & pred
+sp.distPredPrey = spaps(prey.t,rangeMag,sp.tol.Head);
+
+%% Angular deviation between gaze and prey
+
+% Right eye position
+xReye = fnval(sp.xReye,eyes.t);
+yReye = 1024 - fnval(sp.yReye,eyes.t);
+
+% Left eye position
+xLeye = fnval(sp.xLeye,eyes.t);
+yLeye = 1024 - fnval(sp.yLeye,eyes.t);
+
+% Indices for positive (or 0) bearing angle; i.e., prey on left side
+indPos = phi >= 0;
+
+% Indices for negative bearing angle; i.e., prey on right side
+indNeg = phi < 0;
+
+% Preallocate vector
+xtheta_E = zeros(size(phi));
+ytheta_E = zeros(size(phi));
+theta_E  = zeros(size(phi));
+
+% Coordinates of vector from eye to prey (for left side/left eye)
+xtheta_E(indPos) = xPrey_val(indPos) - xLeye(indPos);
+ytheta_E(indPos) = yPrey_val(indPos) - yLeye(indPos);
+
+% Coordinates of vector from eye to prey (for right side/right eye)
+xtheta_E(indNeg) = xPrey_val(indNeg) - xReye(indNeg);
+ytheta_E(indNeg) = yPrey_val(indNeg) - yReye(indNeg);
+
+% Direction of angle from eye to prey (inertial coordinates)
+theta_EG = atan2(ytheta_E, xtheta_E);
+
+% Gaze angle values
+gazeR = fnval(sp.gazeR,eyes.t);
+gazeL = fnval(sp.gazeL,eyes.t);
+
+theta_E(indPos) = theta_EG(indPos) - gazeL(indPos);
+theta_E(indNeg) = theta_EG(indNeg) - gazeR(indNeg);
+
+% Spline fit theta_E
+sp.thetaE = spaps(prey.t,theta_E,sp.tol.Head);
 
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
@@ -383,6 +452,9 @@ if ~isfield(D,'intSet')
     
     % Time points of peak angular velocity
     tAV = unique(hd_D2roots(idx1));
+    
+    % Store time points of peak angular velocity
+    D.tAV = tAV;
     
     % Values of peak angular velocity
     hdAngle_max = fnval(sp.hdAngle_D1,tAV);
@@ -421,6 +493,21 @@ if ~isfield(D,'intSet')
         
         clear tAV_before tAV_after tHD_before tHD_after
     end
+    
+    %% Prior time intervals
+
+    % Preallocate array for time intervals before turns (prior interval)
+    D.priorInt = zeros(size(D.tInt));
+    
+    % Left endpoint of first prior interval (initial time)
+    D.priorInt(1,1) = mid.t(frStart);
+    
+    % Left endpoints of prior interval
+    D.priorInt(2:numTurns,1) = D.tInt(1:numTurns-1,2);
+    
+    % Right endpoints of prior interval
+    D.priorInt(:,2) = D.tInt(:,1);
+
 end
 
 %% Interactive GUI for time intervals corrections
@@ -433,25 +520,16 @@ else
     % intervals have already been adjusted...continue
 end
 
-%% Prior time intervals
-
-% Preallocate array for time intervals before turns (prior interval)
-D.priorInt = zeros(size(D.tInt));
-
-% Left endpoint of first prior interval (initial time)
-D.priorInt(1,1) = mid.t(frStart);
-
-% Left endpoints of prior interval 
-D.priorInt(2:numTurns,1) = D.tInt(1:numTurns-1,2);
-
-% Right endpoints of prior interval
-D.priorInt(:,2) = D.tInt(:,1);
 
 %% Compute changes in angles & absolute values before turn
 
 % Change in orientation during turn
 hdDelta         = diff(fnval(sp.hdAngle,D.tInt),1,2);
 D.hdDelta       = hdDelta;
+
+% Change in heading in prior interval (proxy for coasting)
+hdDelta_pre         = diff(fnval(sp.hdAngle,D.priorInt),1,2);
+D.hdDelta_pre       = hdDelta_pre;
 
 % Change in gaze angle in prior interval
 gazeDelta       = diff(fnval(sp.gazeR,D.priorInt),1,2);
@@ -465,6 +543,10 @@ D.bearDelta     = bearDelta;
 alphaDelta      = diff(fnval(sp.alpha,D.priorInt),1,2);
 D.alphaDelta    = alphaDelta;
 
+% Change in gaze/prey deviation vector in prior interval
+thetaEDelta      = diff(fnval(sp.thetaE,D.priorInt),1,2);
+D.thetaEDelta    = thetaEDelta;
+
 % Compute bearing angle at start of turn
 bearingPre      = fnval(sp.bearAngl,D.tInt(:,1));
 D.bearingPre    = bearingPre;
@@ -473,31 +555,150 @@ D.bearingPre    = bearingPre;
 bearD1Pre       = fnval((fnder(sp.bearAngl)),D.tInt(:,1));
 D.bearD1Pre     = bearD1Pre;
 
+% Distance between predator and prey at start of turn
+distPre         = fnval(sp.distPredPrey,D.tInt(:,1));
+D.distPre       = distPre;
+
 % matrix of all change in angle data
-allData = [hdDelta gazeDelta bearDelta alphaDelta bearingPre bearD1Pre];
+allData = [hdDelta, hdDelta_pre gazeDelta, bearDelta, alphaDelta, ...
+    thetaEDelta, bearingPre, bearD1Pre, distPre];
 
 %% Save Data
 
 % fileID = fopen([paths.data filesep 'DeltaAngle-Data.txt'],'a+');
 % 
 % % Number format
-% fmt = '%.4f\t %.4f\t %.4f\t %.4f\n';
+% fmt = '%.4f\t %.4f\t %.4f\t %.4f\t %.4f\t %.4f\t %.4f\n';
 % 
 % % print headers
-% fprintf(fileID,'%s\t %s\t %s\t %s\n %s\n',...
+% fprintf(fileID,'%s\t %s\t %s\t %s\t %s\t %s\t %s\n %s\n',...
 %     'hdDelta', 'gazeDelta', 'bearDelta', 'alphaDelta',...
+%     'thetaE-Delta', 'bearingPre', 'bearD1Pre',...
 %     [batchName, '-', expName]);
 % 
 % % Go to end of file
-% fseek(fileID,0,'eof')
+% fseek(fileID,0,'eof');
 % 
 % % print data
 % fprintf(fileID,fmt, allData);
 % fclose(fileID);
+% 
+% % Save to .mat file
+% if ~isempty(dir([paths.data filesep 'deltaAngles-full.mat']))
+%     
+%     s = load([paths.data filesep 'deltaAngles-full.mat']);
+%     
+%     % row of zeros to separate experiments
+%     row0 = zeros(1,size(allData,2));
+% 
+%     % Vertically concatenate previous data with current data
+%     allData = [s.allData; row0 ; allData];
+%     
+%     save([paths.data filesep 'deltaAngles-full.mat'],'allData','-append')
+% else
+%     
+%     % row of zeros to separate experiments
+%     row0 = zeros(1,size(allData,2));
+% 
+%     % Vertically concatenate previous data with current data
+%     allData = [row0 ; allData];
+%     
+%     save([paths.data filesep 'deltaAngles-full.mat'],'allData')
+% end
+% 
+% % Save spline and turning data
+% save([dPath filesep 'turn data.mat'],'sp', 'D')
 
-% Save spline and turning data
-save([dPath filesep 'turn data.mat'],'sp', 'D')
+%% Create movie
 
+% Initialize iteration counter
+iter = 1;
+
+% Create figure
+h = figure;
+
+% Set figure size
+h.Position = [100, 100, 1080, 900];
+
+% Set figure size for saving
+h.PaperUnits = 'inches';
+h.PaperPosition = [0 0 7.2 6];
+
+% Loop through frames
+for k = frStart:frEnd  
+    
+    
+    % Load image of video frame
+    im = imread([vPath filesep a(k).name]);
+    
+    % Get color order
+    color = get(gca,'colororder');
+    
+    % Plot current frame
+    subplot(3,2,[1,3,5])
+    imshow(im, 'InitialMagnification','fit')
+    
+    % Plot heading angle (blue)
+    subplot(3,2,2)
+    plot(sp.time,headAngle*180/pi,'Color',color(1,:),'LineWidth',2)
+    hold on
+    
+    % Get current axes and plot vertical line 
+    ax2 = gca;
+    line([1 1].*sp.time(iter),ax2.YLim,'Color','k','LineWidth',1)
+    hold off
+    
+    xlabel('time (s)')
+    ylabel('Heading Angle (deg)')
+    
+    % Plot gaze angles (Right=goldish & Left=pinkish)
+    subplot(3,2,4)
+        
+    % Left Gaze, solid line means prey is within left gaze
+    plot(sp.time(indPos),gazeL(indPos)*180/pi,...
+        '.','Color',color(7,:).*[1.2 1 3],'MarkerSize',8)
+    hold on
+    plot(sp.time(indNeg),gazeL(indNeg)*180/pi,...
+        '.','Color',color(7,:).*[1.2 1 3],'MarkerSize',2)
+    
+    % Right Gaze, solid line means prey is within left gaze
+    plot(sp.time(indPos),gazeR(indPos)*180/pi,...
+        '.','Color',color(3,:),'MarkerSize',2)
+    plot(sp.time(indNeg),gazeR(indNeg)*180/pi,...
+        '.','Color',color(3,:),'MarkerSize',8)
+    
+    % Get current axes and plot vertical line 
+    ax6 = gca;
+    line([1 1].*sp.time(iter),ax6.YLim,'Color','k','LineWidth',1)
+    hold off
+    
+    xlabel('time (s)')
+    ylabel('Gaze Angle(deg)')  
+%     legend('Left Gaze','Right Gaze')
+    
+    % Plot bearing angle (green)
+    subplot(3,2,6)
+    plot(sp.time,phi*180/pi,'Color',color(5,:).*[0 0.9 1.05],'LineWidth',2)
+    hold on
+    
+    % Get current axes and plot vertical line 
+    ax4 = gca;
+    line([1 1].*sp.time(iter),ax4.YLim,'Color','k','LineWidth',1)
+    hold off
+    
+    xlabel('time (s)')
+    ylabel('Bearing Angle (deg)')
+
+    set(findobj(h, '-property', 'FontSize'),'FontSize',8)
+    
+    % Update iteration counter
+    iter = iter + 1;
+    
+    drawnow
+    
+    print(h,[tPath filesep a(k).name(1:end-4)],'-djpeg')
+    
+end
 
 %% Visualize the results
 
