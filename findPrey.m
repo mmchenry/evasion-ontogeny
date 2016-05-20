@@ -67,33 +67,48 @@ if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
     
     close all;
     
-    % Load image of first video frame
-    im = imread([vPath filesep a(startFrame).name]);
+    if 0% redoPrey
+        % Load prey data
+        load([dPath filesep 'prey data.mat'])
+        
+        % Get initial position of prey
+        pPrey.x = prey.x0;
+        pPrey.y = prey.y0;
+    else
+        
+        % Load image of first video frame
+        im = imread([vPath filesep a(startFrame).name]);
+        
+        f = figure;
+        imshow(im,'InitialMagnification','fit')
+        title('Zoom into prey region and press return')
+        zoom on;
+        
+        % Wait for the most recent key to become the return/enter key
+        waitfor(f,'CurrentKey','return');
+        zoom reset;
+        zoom off;
+        
+        title('Select rostrum and COM')
+        [x,y,~] = ginput(2);
+        hold on
+        plot(x(1),y(1),'+r',x,y,'r-')
+        
+        % Save initial position of prey
+        pPrey.x = x(2);
+        pPrey.y = y(2);
+        
+        % Store initial position of prey 
+        prey.x0 = x(2);
+        prey.y0 = y(2);
+        
+        % Set initial prey size in pixels (rough estimate)
+        pPrey.size = 20;
+        
+        % close figure
+        close(f)
     
-    f = figure;
-    imshow(im,'InitialMagnification','fit')
-    title('Zoom into prey region and press return')
-    zoom on;
-    
-    % Wait for the most recent key to become the return/enter key
-    waitfor(f,'CurrentKey','return');
-    zoom reset;
-    zoom off;
-    
-    title('Select rostrum and COM')
-    [x,y,~] = ginput(2);
-    hold on
-    plot(x(1),y(1),'+r',x,y,'r-')
-    
-    % Save initial position of prey
-    pPrey.x = x(2);
-    pPrey.y = y(2);
-    
-    % Set initial prey size in pixels (rough estimate)
-    pPrey.size = 20;
-    
-    % close figure
-    close(f)
+    end
     
     clear x y
 
@@ -160,7 +175,11 @@ imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
             prey.xPrey(k,1)     = blob.xPrey;
             prey.yPrey(k,1)     = blob.yPrey;
             prey.thetaPrey(k,1) = blob.thetaPrey;
+            
+            % Store prey size parameters
             prey.size(k,1)      = blob.sizePrey;
+            prey.MajorAxis(k,1) = blob.MajorAxis;
+            prey.MinorAxis(k,1) = blob.MinorAxis;
             
             % Update blob pixel positions for next iteration
             pPrey.x = blob.xVals;
@@ -272,7 +291,7 @@ imBW1 = bwselect(imBW,pPrey.x,pPrey.y,8);
 
 % Measure its properties
 props2 = regionprops(imBW1,'Centroid','Area','Orientation',...
-    'BoundingBox','PixelList');
+    'BoundingBox','PixelList','MajorAxisLength','MinorAxisLength');
 
 % Filter out small objects (<0.33 px of preySize) found by 'regionprops'
 props2 = props2([props2.Area] > pPrey.size/3);
@@ -291,7 +310,7 @@ elseif length(props2)>1
     imBW1 = bwselect(imBW);
     
     props2 = regionprops(imBW1,'Centroid','Area','Orientation',...
-    'BoundingBox', 'PixelList');
+    'BoundingBox', 'PixelList','MajorAxisLength','MinorAxisLength');
 
 % Get bounding box for prey
     perim = props2.BoundingBox;
@@ -318,6 +337,8 @@ elseif length(props2)>1
     blob.roi_blob    = rect;
     blob.xVals       = props2.PixelList(:,1);
     blob.yVals       = props2.PixelList(:,2);
+    blob.MajorAxis   = props2.MajorAxisLength;
+    blob.MinorAxis   = props2.MinorAxisLength;
     
     % Store cropped images
     blob.im      = imBlob;
@@ -351,6 +372,8 @@ else
     blob.roi_blob    = rect;
     blob.xVals       = props2.PixelList(:,1);
     blob.yVals       = props2.PixelList(:,2);
+    blob.MajorAxis   = props2.MajorAxisLength;
+    blob.MinorAxis   = props2.MinorAxisLength;
     
     % Store cropped images
     blob.im      = imBlob;
