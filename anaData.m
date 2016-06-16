@@ -4,13 +4,13 @@ function anaData(batchName,expName)
 % that finds where turns occur and extracts data from these portions. 
 
 if nargin < 2
-    batchName   = '2016-04-14';
-    expName     = 'S04';
+    batchName   = '2016-02-19';
+    expName     = 'S01';
 end
 
 % Conversion factor to convert from pixels to cm.
-cF = 0.0050;        % post 03-23 
-% cF = 0.0064;        % pre 3-23
+% cF = 0.0050;        % post 03-23 
+cF = 0.0064;        % pre 3-23
 
 % Indicator for visualizing spline fits
 vis = 0;
@@ -67,7 +67,7 @@ vPath = [paths.rawvid filesep batchName filesep expName];
 tPath = [paths.thumb filesep batchName filesep expName];
 
 % Directory for turn data
-turnPath = [root filesep 'Turns_Data'];
+turnPath = [root filesep 'Turn_Data'];
 
 %% Load data
 
@@ -79,6 +79,9 @@ load([dPath filesep 'eye data.mat'])
 
 % Load prey data
 load([dPath filesep 'prey data.mat'])
+
+% fix time vector
+prey.t = 2*prey.t;
 
 % Load video filenames 
 a = dir([vPath filesep 'exp*']);
@@ -202,7 +205,8 @@ gazeL = (LeyeG + pi/2);
 fNames = fieldnames(prey);
 
 % Extract prey data range specified by start & end frames
-for j=1:numel(fNames)
+% Begin with 3rd variable, first two are scalars
+for j=3:numel(fNames)
     prey.(fNames{j}) = prey.(fNames{j})(frStart:frEnd,:);
 end
 
@@ -389,7 +393,7 @@ end
 sp.bearAngl = spaps(prey.t,phi,sp.tol.Head);
 
 % Spline fit range vector direction (alpha; aka: absolute prey angle)
-sp.alpha    = spaps(prey.t,alpha_R,sp.tol.Head);
+sp.alpha    = spaps(prey.t,unwrap(alpha_R),sp.tol.Head);
 
 % Save distance between prey & pred
 sp.distPredPrey = spaps(prey.t,rangeMag,sp.tol.Head);
@@ -430,11 +434,15 @@ theta_EG = atan2(ytheta_E, xtheta_E);
 gazeR = fnval(sp.gazeR,eyes.t);
 gazeL = fnval(sp.gazeL,eyes.t);
 
+% Angle between gaze and vector from pred to prey: theta_E
 theta_E(indPos) = theta_EG(indPos) - gazeL(indPos);
 theta_E(indNeg) = theta_EG(indNeg) - gazeR(indNeg);
 
 % Spline fit theta_E
 sp.thetaE = spaps(prey.t,theta_E,sp.tol.Head);
+
+% Spline fit theta_EG
+sp.thetaEG = spaps(prey.t,theta_EG,sp.tol.Head);
 
 %% Angular size of prey (angle subtended on retina)
 longAxis = mean(prey.MajorAxis);
@@ -450,10 +458,10 @@ distPreyEye = sqrt(sum([xtheta_E, ytheta_E].^2,2));
 sp.distPreyEye = spaps(prey.t,distPreyEye,sp.tol.Head);
 
 % Angular size of prey (angle subtended on retina)
-delta = 2*atan(preyDiameter./distPreyEye);
+delta = 2*atan(preyDiameter./(2*distPreyEye));
 
 % Save angular size of prey
-sp.delta = spaps(prey.t,delta,sp.tol.Head);
+sp.delta = spaps(prey.t,delta,sp.tol.Head*5);
 
 % Angular velocity of prey on eye
 sp.deltaD1 = fnder(sp.delta);
@@ -546,13 +554,33 @@ end
 %% Interactive GUI for time intervals corrections
 
 % Call interactive time intervals GUI
-if ~isfield(D,'intSet') 
-    D = intervalsGUI(D,numTurns,sp.hdAngle);
+if ~isfield(D,'intSet') || 0
+
+    D = intervalsGUI(D,D.numTurns,sp.hdAngle);
     
 else
     % intervals have already been adjusted...continue
 end
 
+%% Max bearing angle during a glide
+for j=1:length(D.priorInt)
+    
+    Bearing_MaxMin = fnzeros(fnder(sp.bearAngl),D.priorInt(j,:));
+    Bearing_MaxMin = Bearing_MaxMin(:);
+    
+    % Time points of peak bearing
+%     tBearingPeak = unique(Bearing_MaxMin);
+    
+    % Get peaks and troughs of bearing angle
+    peakBearing = abs(fnval(sp.bearAngl,Bearing_MaxMin));
+    
+    % Maximum bearing angle (absolute value)
+    maxBearing(j,1) = max(peakBearing);
+    
+end
+
+% Save max bearing into D structure
+D.maxBearing = maxBearing;
 
 %% Compute changes in angles & absolute values before turn
 
@@ -580,6 +608,10 @@ D.alphaDelta    = alphaDelta;
 thetaE_Delta      = diff(fnval(sp.thetaE,D.priorInt),1,2);
 D.thetaE_Delta    = thetaE_Delta;
 
+% Change in gaze/prey deviation (theta_EG) vector in prior interval
+thetaEG_Delta      = diff(fnval(sp.thetaEG,D.priorInt),1,2);
+D.thetaEG_Delta    = thetaEG_Delta;
+
 % Change in derivative of theta_E in prior interval
 thetaE_D1Delta      = diff(fnval(fnder(sp.thetaE),D.priorInt),1,2);
 D.thetaE_D1Delta    = thetaE_D1Delta;
@@ -587,6 +619,10 @@ D.thetaE_D1Delta    = thetaE_D1Delta;
 % Compute value of theta_E at start of turn
 thetaE_Pre        = fnval(sp.thetaE,D.tInt(:,1));
 D.thetaE_Pre      = thetaE_Pre;
+
+% Compute value of theta_EG at start of turn
+thetaEG_Pre        = fnval(sp.thetaEG,D.tInt(:,1));
+D.thetaEG_Pre      = thetaEG_Pre;
 
 % Compute derivative of theta_E at start of turn
 thetaE_D1Pre        = fnval(fnder(sp.thetaE),D.tInt(:,1));
@@ -628,13 +664,16 @@ D.distPost      = distPost;
 tTurn   = diff(D.tInt,1,2);
 
 % Duration between turns (sec); exlude first interval
-interTurn = diff(D.priorInt(2:end,:),1,2);
+interTurn(1,1) = 100;
+interTurn = [interTurn; diff(D.priorInt(2:end,:),1,2)];
 
 % matrix of all change in angle data
 allData = [hdDelta, hdDelta_pre, gazeDelta, bearDelta, alphaDelta, ...
-     thetaE_Delta, thetaE_D1Delta, thetaE_Pre, thetaE_D1Pre,...
+     thetaE_Delta, thetaEG_Delta, thetaE_D1Delta,...
+     thetaE_Pre, thetaEG_Pre, thetaE_D1Pre,...
      bearingPre, bearingPost, bearD1Pre, ...
      deltaPre, deltaPost, delta_DeltaPre...
+     maxBearing,...
      distPre, distPost, tTurn, interTurn];
 
 %% Save Data
