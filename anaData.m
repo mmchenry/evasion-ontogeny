@@ -469,7 +469,7 @@ sp.deltaD1 = fnder(sp.delta);
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
 % If intervals have not been set...
-if ~isfield(D,'intSet')
+if ~isfield(D,'intSet') || 1
     
     % Clear old data structure D
     clear D
@@ -496,16 +496,20 @@ if ~isfield(D,'intSet')
     
     % Store time points of peak angular velocity
     D.tAV = tAV;
-    
-    % Values of peak angular velocity
-    hdAngle_max = fnval(sp.hdAngle_D1,tAV);
-    
-    % Store max angular velocity
-    D.hdAngle_maxAV = hdAngle_max;
+
+%%% NOTE: Compute these later
+%     % Values of peak angular velocity
+%     hdAngle_max = fnval(sp.hdAngle_D1,tAV);
+%     
+%     % Store max angular velocity
+%     D.hdAngle_maxAV = hdAngle_max;
     
     % Total number of turns
     numTurns    = length(tAV);
     D.numTurns  = numTurns;
+
+    % Check that all turns are accurately found
+    D = intervalsGUI(D,D.numTurns,sp.hdAngle,'turns');
     
     % For each peak in angular velocity, find the time interval for the turn
     for k=1:numTurns
@@ -556,7 +560,7 @@ end
 % Call interactive time intervals GUI
 if ~isfield(D,'intSet') || 0
 
-    D = intervalsGUI(D,D.numTurns,sp.hdAngle);
+    D = intervalsGUI(D,D.numTurns,sp.hdAngle,'intervals');
     
 else
     % intervals have already been adjusted...continue

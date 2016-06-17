@@ -67,13 +67,16 @@ if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
     
     close all;
     
-    if 0% redoPrey
+    if  0%redoPrey
         % Load prey data
         load([dPath filesep 'prey data.mat'])
         
         % Get initial position of prey
         pPrey.x = prey.x0;
         pPrey.y = prey.y0;
+        
+        % Set initial prey size in pixels (rough estimate)
+        pPrey.size = 20;
     else
         
         % Load image of first video frame
@@ -225,6 +228,8 @@ disp(['     . . . completed in ' num2str(telap) ' min'])
 
 % Save data 'prey'
 save([dPath filesep 'prey data.mat'],'prey')
+
+beep
 
 else
     disp('            Loading prey data')

@@ -83,7 +83,7 @@ sp.yHead = fnval(spaps(mid.t,mid.yHead,tol.head),mid.t);
 warning on
 
 % Visualize spline fits
-if 1
+if 0
     figure
     subplot(2,1,1)
     plot(mid.xRost,mid.yRost,'.',sp.xRost,sp.yRost,'-')
@@ -99,8 +99,6 @@ if 1
     ylabel('Head y')
     xlabel('Head x')   
 end
-
-pause
 
 % Cranial length
 cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));
