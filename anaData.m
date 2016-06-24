@@ -3,14 +3,15 @@ function anaData(batchName,expName)
 % anaData loads raw midline, prey, and eye data and runs a simple analysis
 % that finds where turns occur and extracts data from these portions. 
 
+% Current experiment name
 if nargin < 2
-    batchName   = '2016-02-17';
+    batchName   = '2016-04-14';
     expName     = 'S01';
 end
 
 % Conversion factor to convert from pixels to cm.
-% cF = 0.0050;        % post 03-23 
-cF = 0.0064;        % pre 3-23
+cF = 0.0050;        % for experiments after 03-23-16 
+% cF = 0.0064;        % for experiments before 3-23-16
 
 % Indicator for visualizing spline fits
 vis = 0;
@@ -79,9 +80,6 @@ load([dPath filesep 'eye data.mat'])
 
 % Load prey data
 load([dPath filesep 'prey data.mat'])
-
-% fix time vector
-prey.t = 2*prey.t;
 
 % Load video filenames 
 a = dir([vPath filesep 'exp*']);
@@ -469,7 +467,7 @@ sp.deltaD1 = fnder(sp.delta);
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
 % If intervals have not been set...
-if ~isfield(D,'intSet') || 0
+if ~isfield(D,'intSet') 
     
     % Clear old data structure D
     clear D
@@ -570,7 +568,7 @@ end
 %% Interactive GUI for time intervals corrections
 
 % Call interactive time intervals GUI
-if ~isfield(D,'intSet') || 0
+if ~isfield(D,'intSet') 
 
     D = intervalsGUI(D,D.numTurns,sp.hdAngle,'intervals');
     
