@@ -4,7 +4,7 @@ function anaData(batchName,expName)
 % that finds where turns occur and extracts data from these portions. 
 
 if nargin < 2
-    batchName   = '2016-02-19';
+    batchName   = '2016-02-17';
     expName     = 'S01';
 end
 
@@ -469,7 +469,7 @@ sp.deltaD1 = fnder(sp.delta);
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
 % If intervals have not been set...
-if ~isfield(D,'intSet') || 1
+if ~isfield(D,'intSet') || 0
     
     % Clear old data structure D
     clear D
@@ -496,13 +496,6 @@ if ~isfield(D,'intSet') || 1
     
     % Store time points of peak angular velocity
     D.tAV = tAV;
-
-%%% NOTE: Compute these later
-%     % Values of peak angular velocity
-%     hdAngle_max = fnval(sp.hdAngle_D1,tAV);
-%     
-%     % Store max angular velocity
-%     D.hdAngle_maxAV = hdAngle_max;
     
     % Total number of turns
     numTurns    = length(tAV);
@@ -511,6 +504,25 @@ if ~isfield(D,'intSet') || 1
     % Check that all turns are accurately found
     D = intervalsGUI(D,D.numTurns,sp.hdAngle,'turns');
     
+    % Update time points
+    tAV = D.tAV;
+    
+    % Update total number of turns
+    numTurns = D.numTurns;
+    
+%     % Update angular vel. and accel. peaks
+%     hd_D1roots(D.indx) = [];
+%     hd_D2roots(D.indx) = [];
+%     
+    % Values of peak angular velocity
+    hdAngle_max = fnval(sp.hdAngle_D1,tAV);
+    
+    % Store max angular velocity
+    D.hdAngle_maxAV = hdAngle_max;
+    
+    % Save spline and turning data up to this point
+    save([dPath filesep 'turn data.mat'],'sp', 'D')
+
     % For each peak in angular velocity, find the time interval for the turn
     for k=1:numTurns
         
@@ -562,29 +574,32 @@ if ~isfield(D,'intSet') || 0
 
     D = intervalsGUI(D,D.numTurns,sp.hdAngle,'intervals');
     
+    % Save spline and turning data up to this point
+    save([dPath filesep 'turn data.mat'],'sp', 'D')
+    
 else
     % intervals have already been adjusted...continue
 end
 
 %% Max bearing angle during a glide
-for j=1:length(D.priorInt)
-    
-    Bearing_MaxMin = fnzeros(fnder(sp.bearAngl),D.priorInt(j,:));
-    Bearing_MaxMin = Bearing_MaxMin(:);
-    
-    % Time points of peak bearing
-%     tBearingPeak = unique(Bearing_MaxMin);
-    
-    % Get peaks and troughs of bearing angle
-    peakBearing = abs(fnval(sp.bearAngl,Bearing_MaxMin));
-    
-    % Maximum bearing angle (absolute value)
-    maxBearing(j,1) = max(peakBearing);
-    
-end
-
-% Save max bearing into D structure
-D.maxBearing = maxBearing;
+% for j=1:length(D.priorInt)
+%     
+%     Bearing_MaxMin = fnzeros(fnder(sp.bearAngl),D.priorInt(j,:));
+%     Bearing_MaxMin = Bearing_MaxMin(:);
+%     
+%     % Time points of peak bearing
+% %     tBearingPeak = unique(Bearing_MaxMin);
+%     
+%     % Get peaks and troughs of bearing angle
+%     peakBearing = abs(fnval(sp.bearAngl,Bearing_MaxMin));
+%     
+%     % Maximum bearing angle (absolute value)
+%     maxBearing(j,1) = max(peakBearing);
+%     
+% end
+% 
+% % Save max bearing into D structure
+% D.maxBearing = maxBearing;
 
 %% Compute changes in angles & absolute values before turn
 
@@ -676,8 +691,7 @@ allData = [hdDelta, hdDelta_pre, gazeDelta, bearDelta, alphaDelta, ...
      thetaE_Delta, thetaEG_Delta, thetaE_D1Delta,...
      thetaE_Pre, thetaEG_Pre, thetaE_D1Pre,...
      bearingPre, bearingPost, bearD1Pre, ...
-     deltaPre, deltaPost, delta_DeltaPre...
-     maxBearing,...
+     deltaPre, deltaPost, delta_DeltaPre, ...
      distPre, distPost, tTurn, interTurn];
 
 %% Save Data

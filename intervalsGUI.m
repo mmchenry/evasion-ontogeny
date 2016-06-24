@@ -117,6 +117,7 @@ switch mode
         end
         
         % Save updated turning event times and total number of turns
+%         D.indx = find(D.tAV < 0);
         D.tAV(D.tAV < 0) = [];
         D.numTurns = numTurns;
         
