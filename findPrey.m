@@ -61,6 +61,7 @@ end
 % Make frame list for analysis
 frames = startFrame:(1+skipFrame):endFrame;
 
+
 %% Initial position of prey
 
 if isempty(dir([dPath filesep 'prey data.mat'])) || redoPrey
@@ -235,6 +236,7 @@ else
     disp('            Loading prey data')
     load([dPath filesep 'prey data.mat'])
 end
+
 
 %% Plot results
 figure
