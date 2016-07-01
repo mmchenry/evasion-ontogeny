@@ -7,6 +7,7 @@ if nargin < 2
     batchName   = '2016-04-14';
     expName     = 'S01';
 end
+%Test
 
 
 %% Parameter values
