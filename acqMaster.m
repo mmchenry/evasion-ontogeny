@@ -69,6 +69,7 @@ waitDur = 0.5;
 % Duration (in s) to pause between each loop when waiting
 loopDur = 2;   
 
+
 %% Path definitions
 
 % % Matt's computer

@@ -1,8 +1,92 @@
 function dOut = give(D,param)
 % Returns variable values from raw data
 
+% Default output is empty
+dOut = [];
 
+
+%% Indicies for interval before, during, and after a beat
+
+if isfield(D,'tBeat')
+    for i = 1:size(D.tBeat,1)
+        
+        %Log type
+        beat_type(i,1) = D.tBeat(i,1);
+        
+        % Index for current beat
+        iCurr{i} = (D.t>=D.tBeat(i,2)) & (D.t<=D.tBeat(i,3));
+        
+        % If first loop . . .
+        if i==1
+            iPre{i} = D.t<D.tBeat(i,2);
+            
+        % If after first . . .
+        else
+            iPre{i} = (D.t>D.tBeat(i-1,3)) & (D.t<D.tBeat(i,2));
+        end
+        
+        % If last loop . . .
+        if i==size(D.tBeat,1)
+            iPost{i} = D.t>D.tBeat(i,3);
+            
+        % Else . . .
+        else
+            iPost{i} = (D.t>D.tBeat(i,3)) & (D.t<D.tBeat(i+1,2));
+        end
+    end
+end
+
+
+%% Return requested parameters
 switch param
+
+    case 'turn stats'
+        
+        spd = give(D,'pred spd');
+        
+        % Initial index
+        j = 1;
+        
+        % Step thru all beats
+        for i = 1:length(beat_type)
+
+            % Change in heading
+            dOut(j,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
+            
+            % Max speed during turn
+            dOut(j,2) = max(spd(iCurr{i}));
+            
+            % Duration of glide prior to beat
+            dOut(j,3) = range(D.t(iPre{i}));
+            
+            % Advance index
+            j = j + 1;
+        end
+        
+    case 'flick stats'
+        
+        spd = give(D,'pred spd');
+        
+        % Initial index
+        j = 1;
+        
+        % Step thru all beats
+        for i = 1:length(beat_type) 
+            
+            % If tail beat . . .
+            if beat_type(i)==0
+                
+                % Log change in heading
+                dOut(j,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
+                
+                % Log max speed
+                dOut(j,2) = max(spd(iCurr{i}));
+                
+                % Advance index
+                j = j + 1;
+            end
+        end
+    
     case 'pred spd'
         % Rate fo change in x and y via splines
         dXsp = fnder(D.sp.xPd);
@@ -16,6 +100,20 @@ switch param
             spd = sqrt(diff(D.posPd(:,1)).^2 + diff(D.posPd(:,2)).^2)./diff(D.t);
             plot(D.t,dOut,'-',D.t(2:end),spd,'.')
         end
+        
+    case 'prey spd'
+        % Rate fo change in x and y via splines
+        dXsp = fnder(D.sp.xPy);
+        dYsp = fnder(D.sp.yPy);
+        
+        % Resultant speed
+        dOut = sqrt(fnval(dXsp,D.t).^2 + fnval(dXsp,D.t).^2);
+        
+        % Test against discrete calculation
+        if 0, figure
+            spd = sqrt(diff(D.posPy(:,1)).^2 + diff(D.posPy(:,2)).^2)./diff(D.t);
+            plot(D.t,dOut,'-',D.t(2:end),spd,'.')
+        end    
         
     case 'ang dev'  % Angular deviation between gaze and prey
         
@@ -67,6 +165,26 @@ switch param
         % Save angular size of prey
         [sp,dOut] = spaps(D.t,delta,D.sp.tol.Head*5);
 
+    case 'bearing unwrapped' % Bearing angle
+        
+        % Calculate unwrapped data
+        dOut = give(D,'bearing');
+        
+        % Loop until all values greater than pi pr less than -pi are gone
+        while true
+            
+            % Index for outside values
+            idxPos = dOut>pi;
+            idxNeg = dOut<-pi;
+            
+            if max(idxPos)==0 && max(idxNeg)==0
+                break
+            end
+            
+            dOut(idxPos) = dOut(idxPos) - 2*pi;
+            dOut(idxNeg) = 2*pi + dOut(idxNeg);
+        end
+        
     case 'bearing' % Bearing angle
         
         % x-coordinate of vector (Range/baseline vector) from pred Rost to prey COM
@@ -82,10 +200,11 @@ switch param
         rangeMag = sqrt(sum([x_R, y_R].^2,2));
         
         % Bearing Angle
-        phi = unwrap(alpha_R) - unwrap(D.posPd(:,3));
+        %phi = unwrap(alpha_R) - unwrap(D.posPd(:,3));
+        dOut = unwrap(alpha_R) - unwrap(D.posPd(:,3));
         
         % Spline fit bearing angles (with heading tolerance)
-        [sp,dOut] = spaps(D.t,phi,D.sp.tol.Head);
+        %[sp,dOut] = spaps(D.t,phi,D.sp.tol.Head);
         
     case 'distPredPrey' % Distance btwn predator and prey
         
@@ -99,10 +218,11 @@ switch param
         alpha_R = atan2(y_R, x_R);
         
         % Magnitude of range/baseline vector (distance between prey & pred)
-        rangeMag = sqrt(sum([x_R, y_R].^2,2));
+        %rangeMag = sqrt(sum([x_R, y_R].^2,2));
+        dOut = sqrt(sum([x_R, y_R].^2,2));
         
         % Save distance between prey & pred
-        [sp,dOut] = spaps(D.t,rangeMag,D.sp.tol.Head);
+        %[sp,dOut] = spaps(D.t,rangeMag,D.sp.tol.Head);
         
     case 'gazeR' % Gaze angle (right eye)
         % Eye angles (world coordinates: [-pi pi])
@@ -135,6 +255,62 @@ switch param
         
         % Spline-fit gaze angles
         [sp,dOut] = spaps(D.t,gazeL,D.sp.tol.Head);
+        
+    case 'bearingPre still' % bearing angle at start of turn (motionless prey)
+        
+        % Bearing values
+        bearing  = give(D,'bearing unwrapped');
+        
+        % Turn stats
+        stats = give(D,'turn stats');
+        
+        % Indicies for turning tail beats that d
+        idx = D.tBeat(:,1)==1 & ~glideOverlap(D);
+        
+        % Get start (of turn) times 
+        tStart = D.tBeat(idx,2);
+        
+        % Output bearing and change in heading
+        dOut = [interp1(D.t,bearing,tStart) stats(idx,1)];
+
+    case 'bearingPre moving' % bearing angle at start of turn (motionless prey)
+        
+        % Bearing values
+        bearing  = give(D,'bearing unwrapped');
+        
+        % Turn stats
+        stats = give(D,'turn stats');
+        
+        % Indicies for turning tail beats that d
+        idx = D.tBeat(:,1)==1 & glideOverlap(D);
+        
+        % Get start (of turn) times 
+        tStart = D.tBeat(idx,2);
+        
+        % Output bearing and change in heading
+        dOut = [interp1(D.t,bearing,tStart) stats(idx,1)];
+        
+    case 'beat duration still' % bearing angle at start of turn (motionless prey)
+               
+        % Turn stats
+        stats = give(D,'turn stats');
+        
+        % Indicies for turning tail beats that don't have motion during glide
+        idx = D.tBeat(:,1)==1 & ~glideOverlap(D);
+        
+        % Get duration of glides
+        dOut = stats(idx,3);       
+        
+    case 'beat duration moving' % bearing angle at start of turn (motionless prey)
+               
+        % Turn stats
+        stats = give(D,'turn stats');
+        
+        % Indicies for turning tail beats that don't have motion during glide
+        idx = D.tBeat(:,1)==1 & glideOverlap(D);
+        
+        % Get duration of glides
+        dOut = stats(idx,3);          
         
     case 'hdDelta' % Change in orientation during turn
         dOut  = diff(fnval(D.sp.angPd,D.tInt),1,2);
@@ -197,22 +373,72 @@ switch param
         error('Parameter requested not recognized');
 end
 
-% transpose
-if size(dOut,2)>size(dOut,1)
-    dOut = dOut';
+
+function idx = beatOverlap(D)
+% Return indicies for tail beats (or flicks) that overlap with prey swimming
+
+% Loop thru turning tailbeats
+for i = 1:size(D.tBeat,1)
+    
+    % True for when the start of turn is within a scoot
+    startOverlap = max(repmat(D.tBeat(i,2),size(D.tBeatPy,1),1)>...
+        D.tBeatPy(:,2) & ...
+        repmat(D.tBeat(i,2),size(D.tBeatPy,1),1)<...
+        D.tBeatPy(:,3));
+    
+    % True for when the end of turn is within a scoot
+    endOverlap = max(repmat(D.tBeat(i,3),size(D.tBeatPy,1),1)>...
+        D.tBeatPy(:,2) & ...
+        repmat(D.tBeat(i,3),size(D.tBeatPy,1),1)<...
+        D.tBeatPy(:,3));
+    
+    % True for when the start of turn is before a scoot
+    startBefore = repmat(D.tBeat(i,2),size(D.tBeatPy,1),1)<...
+        D.tBeatPy(:,2);
+    
+    % True for when the end of turn is after a scoot
+    endAfter = repmat(D.tBeat(i,3),size(D.tBeatPy,1),1)>...
+        D.tBeatPy(:,3);
+    
+    idx(i,1) = startOverlap || endOverlap || ...
+               max(startBefore & endAfter);
 end
 
-% % Duration of turns (sec)
-% tTurn   = diff(D.tInt,1,2);
-%
-% % Duration between turns (sec); exlude first interval
-% interTurn(1,1) = 100;
-% interTurn = [interTurn; diff(D.priorInt(2:end,:),1,2)];
-%
-% % matrix of all change in angle data
-% allData = [hdDelta, hdDelta_pre, gazeDelta, bearDelta, alphaDelta, ...
-%      thetaE_Delta, thetaEG_Delta, thetaE_D1Delta,...
-%      thetaE_Pre, thetaEG_Pre, thetaE_D1Pre,...
-%      bearingPre, bearingPost, bearD1Pre, ...
-%      deltaPre, deltaPost, delta_DeltaPre, ...
-%      distPre, distPost, tTurn, interTurn];
+
+function idx = glideOverlap(D)
+% Return indicies for period before a tail beat that overlaps with prey swimming
+
+% Start time for first glide
+tStart = D.t(1);
+
+% Loop thru turning tailbeats
+for i = 1:size(D.tBeat,1)
+    
+    % True for when a scoot starts within current glide
+    startOverlap = max(...
+        (D.tBeatPy(:,2) > repmat(tStart,size(D.tBeatPy,1),1)) & ...
+        (D.tBeatPy(:,2) < repmat(D.tBeat(i,2),size(D.tBeatPy,1),1)));
+    
+    % True for when a scoot ends within current glide
+    endOverlap = max(...
+        (D.tBeatPy(:,3) > repmat(tStart,size(D.tBeatPy,1),1)) & ...
+        (D.tBeatPy(:,3) < repmat(D.tBeat(i,2),size(D.tBeatPy,1),1)));
+    
+    % True of scoots starting before current glide
+    startBefore = D.tBeatPy(:,2) < repmat(D.tBeat(i,2),size(D.tBeatPy,1),1);
+    
+    % True of scoots ending after current glide
+    endAfter = D.tBeatPy(:,3) > repmat(D.tBeat(i,3),size(D.tBeatPy,1),1);
+    
+    % True if there is no glide before the beat
+    if D.tBeat(i,2)==D.t(1)
+        idx(i,1) = 1;
+        
+        % True if scoot starts or ends in glide or spans glide
+    else
+        idx(i,1) = startOverlap || endOverlap || max(startBefore & endAfter);
+    end
+    
+    % Start time for next glide
+    tStart = D.tBeat(i,3);
+end

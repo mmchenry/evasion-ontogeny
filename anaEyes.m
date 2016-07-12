@@ -53,6 +53,7 @@ pEye.L.yCent = 9;
 pEye.L.area = 100;
 pEye.L.tVal = 40;
 
+
 %% Get Mean image
 
 if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes

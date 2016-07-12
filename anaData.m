@@ -30,8 +30,17 @@ D.p.vid_height = 1024;
 % Minimum duration for a single beat
 D.p.min_dur = 0.1;
 
-% Minium change in direction for a large tailbeat (rad)
+% Minimum duration for a scoot in prey
+D.p.min_durPy = 0.15;
+
+% Minium change in direction for a large tailbeat in predators (rad)
 D.p.yawDelta = 10*pi/180;
+
+% High threshold change in speed for a prey (?/s)
+D.p.highSpdPy = 1;
+
+% Low threshold change in speed for a prey (?/s)
+D.p.lowSpdPy = 0.5;
 
 % Conversion factor to convert from pixels to cm.
 if str2num(batchName(1:4))==2016
@@ -128,7 +137,7 @@ varNames = {'Head','Reye','Leye','prey_ang','Prey','Pred','Eyes','Bend'};
 data.Head  = unwrap(eyes.hdAngle);
 data.Reye  = eyes.rAngle;
 data.Leye  = eyes.lAngle;
-data.prey_ang = unwrap(prey.thetaPrey);
+data.prey_ang = unwrap(prey.thetaPrey/180*pi);
 data.Prey  = prey.xPrey.*D.p.cF;
 data.Pred  = mid.xRost.*D.p.cF;
 data.xReye = eyes.xReye.*D.p.cF;
@@ -148,7 +157,7 @@ warning off
 % Spline fit prey position
 D.sp.xPy    = spaps(D.t,prey.xPrey.*D.p.cF,D.sp.tol.Prey);  
 D.sp.yPy    = spaps(D.t,(D.p.vid_height-prey.yPrey).*D.p.cF,D.sp.tol.Prey);  
-D.sp.angPy  = spaps(D.t,unwrap(prey.thetaPrey),D.sp.tol.prey_ang);  
+D.sp.angPy  = spaps(D.t,unwrap(prey.thetaPrey/180*pi),D.sp.tol.prey_ang);  
 D.posPy     = [fnval(D.sp.xPy,D.t) fnval(D.sp.yPy,D.t) fnval(D.sp.angPy,D.t)];
 
 % Spline fit predator rostrum position & orientation
@@ -224,427 +233,17 @@ clear eyes mid prey posTail
 
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
-% Find periods of tail beating
-D = find_intervals(D);
+% Find periods of tail beating (predator)
+D = find_pred_intervals(D);
+
+% Find periods of tail beating (prey)
+D = find_prey_intervals(D);
 
 % Visualize results
-if 1  
-    vis_beats(D)    
+if 0
+    vis_beats(D,'prey')    
 end
 
-
-
-
-% 
-% 
-% 
-% % Roots of first derivative (angular velocity)
-% hd_D1roots = fnzeros(sp.hdAngle_D1);
-% hd_D1roots = hd_D1roots(:);
-% 
-% % Time points for local min and max of heading angle
-% tHd = unique(hd_D1roots);
-% 
-% % Roots of second derivative (angular acceleration)
-% hd_D2roots = fnzeros(sp.hdAngle_D2);
-% hd_D2roots = hd_D2roots(:);
-% 
-% % Get peaks and troughs of angular velocity
-% peaks = abs(fnval(sp.hdAngle_D1,hd_D2roots));
-% 
-% % Indices of peaks (and troughs) in angular velocity
-% idx1 = peaks > sp.thresh & peaks < sp.thresh*15;
-% 
-% % Time points of peak angular velocity
-% tAV = unique(hd_D2roots(idx1));
-% 
-% % Store time points of peak angular velocity
-% D.tAV = tAV;
-% 
-% % Total number of turns
-% numTurns    = length(tAV);
-% D.numTurns  = numTurns;
-% 
-% % Check that all turns are accurately found
-% D = intervalsGUI(D,D.numTurns,sp.hdAngle,'turns');
-% 
-% % Update time points
-% tAV = D.tAV;
-% 
-% % Update total number of turns
-% numTurns = D.numTurns;
-% 
-% %     % Update angular vel. and accel. peaks
-% %     hd_D1roots(D.indx) = [];
-% %     hd_D2roots(D.indx) = [];
-% %
-% % Values of peak angular velocity
-% hdAngle_max = fnval(sp.hdAngle_D1,tAV);
-% 
-% % Store max angular velocity
-% D.hdAngle_maxAV = hdAngle_max;
-% 
-% % Save spline and turning data up to this point
-% save([dPath filesep 'turn data.mat'],'sp', 'D')
-% 
-% % For each peak in angular velocity, find the time interval for the turn
-% for k=1:numTurns
-%     
-%     % Time points of zeros before peak angular velocity
-%     tAV_before = hd_D2roots(hd_D2roots < tAV(k));
-%     
-%     % Time points of zeros after peak angular velocity
-%     tAV_after = hd_D2roots(hd_D2roots > tAV(k));
-%     
-%     % Time points of local max/min heading angle before peak AV
-%     tHD_before = hd_D1roots(hd_D1roots < tAV(k));
-%     
-%     % Time points of local max/min heading angle after peak AV
-%     tHD_after = hd_D1roots(hd_D1roots > tAV(k));
-%     
-%     % Left endpoint of time interval of turn
-%     D.tInt(k,1) = max([tAV_before; tHD_before; prey.t(1)]);
-%     
-%     % Right endpoint of time interval of turn
-%     if isempty(tAV_after)
-%         D.tInt(k,2) = eyes.t(end);
-%     else
-%         D.tInt(k,2) = min([tAV_after; tHD_after]);
-%     end
-%     
-%     clear tAV_before tAV_after tHD_before tHD_after
-% end
-% 
-% %% Prior time intervals
-% 
-% % Preallocate array for time intervals before turns (prior interval)
-% D.priorInt = zeros(size(D.tInt));
-% 
-% % Left endpoint of first prior interval (initial time)
-% D.priorInt(1,1) = mid.t(frStart);
-% 
-% % Left endpoints of prior interval
-% D.priorInt(2:numTurns,1) = D.tInt(1:numTurns-1,2);
-% 
-% % Right endpoints of prior interval
-% D.priorInt(:,2) = D.tInt(:,1);
-% 
-% %end
-% 
-% 
-% 
-% %% Prelim analysis (Find peaks in angular velocity & time intervals)
-% 
-% % % If intervals have not been set...
-% % %if ~isfield(D,'intSet') 
-% % 
-% % % Roots of first derivative (angular velocity)
-% % hd_D1roots = fnzeros(sp.hdAngle_D1);
-% % hd_D1roots = hd_D1roots(:);
-% % 
-% % % Time points for local min and max of heading angle
-% % tHd = unique(hd_D1roots);
-% % 
-% % % Roots of second derivative (angular acceleration)
-% % hd_D2roots = fnzeros(sp.hdAngle_D2);
-% % hd_D2roots = hd_D2roots(:);
-% % 
-% % % Get peaks and troughs of angular velocity
-% % peaks = abs(fnval(sp.hdAngle_D1,hd_D2roots));
-% % 
-% % % Indices of peaks (and troughs) in angular velocity
-% % idx1 = peaks > sp.thresh & peaks < sp.thresh*15;
-% % 
-% % % Time points of peak angular velocity
-% % tAV = unique(hd_D2roots(idx1));
-% % 
-% % % Store time points of peak angular velocity
-% % D.tAV = tAV;
-% % 
-% % % Total number of turns
-% % numTurns    = length(tAV);
-% % D.numTurns  = numTurns;
-% % 
-% % % Check that all turns are accurately found
-% % D = intervalsGUI(D,D.numTurns,sp.hdAngle,'turns');
-% % 
-% % % Update time points
-% % tAV = D.tAV;
-% % 
-% % % Update total number of turns
-% % numTurns = D.numTurns;
-% % 
-% % %     % Update angular vel. and accel. peaks
-% % %     hd_D1roots(D.indx) = [];
-% % %     hd_D2roots(D.indx) = [];
-% % %
-% % % Values of peak angular velocity
-% % hdAngle_max = fnval(sp.hdAngle_D1,tAV);
-% % 
-% % % Store max angular velocity
-% % D.hdAngle_maxAV = hdAngle_max;
-% % 
-% % % Save spline and turning data up to this point
-% % save([dPath filesep 'turn data.mat'],'sp', 'D')
-% % 
-% % % For each peak in angular velocity, find the time interval for the turn
-% % for k=1:numTurns
-% %     
-% %     % Time points of zeros before peak angular velocity
-% %     tAV_before = hd_D2roots(hd_D2roots < tAV(k));
-% %     
-% %     % Time points of zeros after peak angular velocity
-% %     tAV_after = hd_D2roots(hd_D2roots > tAV(k));
-% %     
-% %     % Time points of local max/min heading angle before peak AV
-% %     tHD_before = hd_D1roots(hd_D1roots < tAV(k));
-% %     
-% %     % Time points of local max/min heading angle after peak AV
-% %     tHD_after = hd_D1roots(hd_D1roots > tAV(k));
-% %     
-% %     % Left endpoint of time interval of turn
-% %     D.tInt(k,1) = max([tAV_before; tHD_before; prey.t(1)]);
-% %     
-% %     % Right endpoint of time interval of turn
-% %     if isempty(tAV_after)
-% %         D.tInt(k,2) = eyes.t(end);
-% %     else
-% %         D.tInt(k,2) = min([tAV_after; tHD_after]);
-% %     end
-% %     
-% %     clear tAV_before tAV_after tHD_before tHD_after
-% % end
-% % 
-% % %% Prior time intervals
-% % 
-% % % Preallocate array for time intervals before turns (prior interval)
-% % D.priorInt = zeros(size(D.tInt));
-% % 
-% % % Left endpoint of first prior interval (initial time)
-% % D.priorInt(1,1) = mid.t(frStart);
-% % 
-% % % Left endpoints of prior interval
-% % D.priorInt(2:numTurns,1) = D.tInt(1:numTurns-1,2);
-% % 
-% % % Right endpoints of prior interval
-% % D.priorInt(:,2) = D.tInt(:,1);
-% % 
-% % %end
-% 
-% 
-% %% Interactive GUI for time intervals corrections
-% 
-% % Call interactive time intervals GUI
-% if ~isfield(D,'intSet') 
-% 
-%     D = intervalsGUI(D,D.numTurns,sp.hdAngle,'intervals');
-%     
-%     % Save spline and turning data up to this point
-%     save([dPath filesep 'turn data.mat'],'sp', 'D')
-%     
-% else
-%     % intervals have already been adjusted...continue
-% end
-% 
-% 
-% %% Max bearing angle during a glide
-% % for j=1:length(D.priorInt)
-% %     
-% %     Bearing_MaxMin = fnzeros(fnder(sp.bearAngl),D.priorInt(j,:));
-% %     Bearing_MaxMin = Bearing_MaxMin(:);
-% %     
-% %     % Time points of peak bearing
-% % %     tBearingPeak = unique(Bearing_MaxMin);
-% %     
-% %     % Get peaks and troughs of bearing angle
-% %     peakBearing = abs(fnval(sp.bearAngl,Bearing_MaxMin));
-% %     
-% %     % Maximum bearing angle (absolute value)
-% %     maxBearing(j,1) = max(peakBearing);
-% %     
-% % end
-% % 
-% % % Save max bearing into D structure
-% % D.maxBearing = maxBearing;
-% 
-% 
-% %% Compute changes in angles & absolute values before turn
-% 
-% 
-%  
-% %% Save Data
-% 
-% % fileID = fopen([paths.data filesep 'DeltaAngle-Data.txt'],'a+');
-% % 
-% % % Number format
-% % fmt = '%.4f\t %.4f\t %.4f\t %.4f\t %.4f\t %.4f\t %.4f\n';
-% % 
-% % % print headers
-% % fprintf(fileID,'%s\t %s\t %s\t %s\t %s\t %s\t %s\n %s\n',...
-% %     'hdDelta', 'gazeDelta', 'bearDelta', 'alphaDelta',...
-% %     'thetaE-Delta', 'bearingPre', 'bearD1Pre',...
-% %     [batchName, '-', expName]);
-% % 
-% % % Go to end of file
-% % fseek(fileID,0,'eof');
-% % 
-% % % print data
-% % fprintf(fileID,fmt, allData);
-% % fclose(fileID);
-% 
-% % Save to .mat file
-% if ~isempty(dir([turnPath filesep 'deltaAngles-full.mat']))
-%     
-%     s = load([turnPath filesep 'deltaAngles-full.mat']);
-%     
-%     % row of zeros to separate experiments
-%     row0 = ones(1,size(allData,2));
-% 
-%     % Vertically concatenate previous data with current data
-%     allData = [s.allData; row0 ; allData];
-%     
-%     save([turnPath filesep 'deltaAngles-full.mat'],'allData','-append')
-% else
-%     
-%     % row of zeros to separate experiments
-% %     row0 = ones(1,size(allData,2));
-% 
-%     % Vertically concatenate previous data with current data
-% %     allData = [row0; allData];
-%     
-%     save([turnPath filesep 'deltaAngles-full.mat'],'allData')
-% end
-% 
-% % Save spline and turning data
-% save([dPath filesep 'turn data.mat'],'sp', 'D')
-% 
-% 
-% %% Create movie
-% 
-% % % Initialize iteration counter
-% % iter = 1;
-% % 
-% % % Create figure
-% % h = figure;
-% % 
-% % % Set figure size
-% % h.Position = [100, 100, 1080, 900];
-% % 
-% % % Set figure size for saving
-% % h.PaperUnits = 'inches';
-% % h.PaperPosition = [0 0 7.2 6];
-% % 
-% % % Loop through frames
-% % for k = frStart:frEnd  
-% %     
-% %     
-% %     % Load image of video frame
-% %     im = imread([vPath filesep a(k).name]);
-% %     
-% %     % Get color order
-% %     color = get(gca,'colororder');
-% %     
-% %     % Plot current frame
-% %     subplot(3,2,[1,3,5])
-% %     imshow(im, 'InitialMagnification','fit')
-% %     
-% %     % Plot heading angle (blue)
-% %     subplot(3,2,2)
-% %     plot(sp.time,headAngle*180/pi,'Color',color(1,:),'LineWidth',2)
-% %     hold on
-% %     
-% %     % Get current axes and plot vertical line 
-% %     ax2 = gca;
-% %     line([1 1].*sp.time(iter),ax2.YLim,'Color','k','LineWidth',1)
-% %     hold off
-% %     
-% %     xlabel('time (s)')
-% %     ylabel('Heading Angle (deg)')
-% %     
-% %     % Plot gaze angles (Right=goldish & Left=pinkish)
-% %     subplot(3,2,4)
-% %         
-% %     % Left Gaze, solid line means prey is within left gaze
-% %     plot(sp.time(indPos),gazeL(indPos)*180/pi,...
-% %         '.','Color',color(7,:).*[1.2 1 3],'MarkerSize',8)
-% %     hold on
-% %     plot(sp.time(indNeg),gazeL(indNeg)*180/pi,...
-% %         '.','Color',color(7,:).*[1.2 1 3],'MarkerSize',2)
-% %     
-% %     % Right Gaze, solid line means prey is within left gaze
-% %     plot(sp.time(indPos),gazeR(indPos)*180/pi,...
-% %         '.','Color',color(3,:),'MarkerSize',2)
-% %     plot(sp.time(indNeg),gazeR(indNeg)*180/pi,...
-% %         '.','Color',color(3,:),'MarkerSize',8)
-% %     
-% %     % Get current axes and plot vertical line 
-% %     ax6 = gca;
-% %     line([1 1].*sp.time(iter),ax6.YLim,'Color','k','LineWidth',1)
-% %     hold off
-% %     
-% %     xlabel('time (s)')
-% %     ylabel('Gaze Angle(deg)')  
-% % %     legend('Left Gaze','Right Gaze')
-% %     
-% %     % Plot bearing angle (green)
-% %     subplot(3,2,6)
-% %     plot(sp.time,phi*180/pi,'Color',color(5,:).*[0 0.9 1.05],'LineWidth',2)
-% %     hold on
-% %     
-% %     % Get current axes and plot vertical line 
-% %     ax4 = gca;
-% %     line([1 1].*sp.time(iter),ax4.YLim,'Color','k','LineWidth',1)
-% %     hold off
-% %     
-% %     xlabel('time (s)')
-% %     ylabel('Bearing Angle (deg)')
-% % 
-% %     set(findobj(h, '-property', 'FontSize'),'FontSize',8)
-% %     
-% %     % Update iteration counter
-% %     iter = iter + 1;
-% %     
-% %     drawnow
-% %     
-% %     print(h,[tPath filesep a(k).name(1:end-4)],'-djpeg')
-% %     
-% % end
-% 
-% 
-% %% Visualize the results
-% 
-% if 1 %vis
-%     
-%     totFrames   = length(gazeR);
-%     frames      = eyes.t(1:totFrames)*250;
-%     
-%     figure
-%     subplot(2,1,1);
-%     plot(frames,unwrap(eyes.hdAngle)./pi*180,'-k');
-%     hold on;
-%     plot(frames,gazeR./pi*180,'-',frames,gazeL./pi*180,'-');
-%     grid on;
-%     legend('Heading','R Gaze','L Gaze');
-%     % xlabel('Time (s)')
-%     xlabel('Frame number')
-%     ylabel('Head/Gaze angle (deg)')
-%     
-%     subplot(2,1,2);
-%     plot(frames,eyes.rAngle./pi*180,'-')
-%     hold on
-%     plot(frames,eyes.lAngle./pi*180,'-')
-%     grid on
-%     legend('R','L');
-%     % xlabel('Time (s)')
-%     xlabel('Frame number')
-%     ylabel('Eye angle (deg)')
-% 
-% end
-% 
-% close all;
-% 
-% disp([batchName, '; exp ', expName])
-% 
 
 
 function sp = findSplineTols(D,sp,varNames,data)
@@ -789,7 +388,79 @@ else
     
 end
 
-function D = find_intervals(D)
+function D = find_prey_intervals(D)
+% Algorithm for determining the time intervals for tail beats and tail
+% flicks.  These are saved in the 'tBeat' field of D in a 3xn matrix, with
+% the first column denoting tail beats (1) and flicks (0).
+
+% Current smoothing spline fit
+spd = give(D,'prey spd');
+sp      = spline(D.t,spd);
+Dsp     = fnder(sp,1);
+
+% Time of changes in sign of rate of change
+tHd = fnzeros(Dsp);
+tHd = unique(tHd(1,:)');
+
+% Time of scoots above threshold spd (candidate)
+tBig = tHd(fnval(sp,tHd)>D.p.highSpdPy);
+
+% Time of change in spd below threshold
+tSmall = tHd(fnval(sp,tHd)<D.p.lowSpdPy);
+
+% Start of changes in angular direction before peak
+tPrior = tSmall(tSmall<tBig(1));
+
+% Ending of changes in angular direction after peak
+tFollow = tSmall(tSmall>(tBig(1)+D.p.min_durPy));
+
+% Set starting time for first tail beat
+if isempty(tPrior)
+    tBeat = D.t(1);
+else
+   tBeat = tPrior(end); 
+end
+
+% Set time for end of first tail beat
+if isempty(tFollow)
+   tBeat(1,2) = D.t(end);
+else
+   tBeat(1,2) = tFollow(1);
+end
+
+% Loop thru candidate times
+for i = 2:length(tBig)
+    
+    % Starts of changes in prior to current iBig
+    tPrior = tSmall((tSmall<tBig(i)) & (tSmall>=(tBig(i-1))));
+    
+    % Ending of changes in angular direction after current peak
+    tFollow = tSmall(tSmall>(tBig(i)+D.p.min_durPy));
+    
+    % If next candidate is beyond the min duration . . .
+    if ~isempty(tPrior) && ~isempty(tFollow)
+        tBeat = [tBeat; tPrior(end) tFollow(1)];
+    elseif ~isempty(tPrior) && isempty(tFollow)
+        tBeat = [tBeat; tPrior(end) D.t(end)];
+    end
+end
+
+% Code all scoots as '1'
+D.tBeatPy   = [ones(size(tBeat,1),1) tBeat];
+
+% Visualize
+if 0
+    subplot(3,1,[1:2]); 
+    plot(D.t,spd,'-',tHd,fnval(sp,tHd),'+k',tBig,fnval(sp,tBig),'ro',...
+         tSmall,fnval(sp,tSmall),'go')
+    addbeats(D,'prey') 
+    subplot(3,1,3); 
+    plot(D.t,fnval(Dsp,D.t),'-',tHd,fnval(Dsp,tHd),'+k',...
+         tBig,fnval(sp,tBig),'ro',tSmall,fnval(sp,tSmall),'go')
+    addbeats(D,'prey') 
+end
+
+function D = find_pred_intervals(D)
 % Algorithm for determining the time intervals for tail beats and tail
 % flicks.  These are saved in the 'tBeat' field of D in a 3xn matrix, with
 % the first column denoting tail beats (1) and flicks (0).
@@ -806,34 +477,35 @@ tHd = unique(tHd(1,:)');
 % Time of peaks in angular rate of change
 tPeak = fnzeros(D2sp);
 tPeak = unique(tPeak(1,:)');
- 
+
 % Time of big tail beats (candidate)
 tBig = tPeak(abs(fnval(Dsp,tPeak))>D.p.yawRate_high);
 
-% Start of changes in angular direction before first peak
+
+% Start of changes in angular direction before peak
 tPrior = tHd(tHd<tBig(1));
 
-% Ending of changes in angular direction after first peak
+% Ending of changes in angular direction after peak
 tFollow = tHd(tHd>tBig(1));
 
 % Set starting time for first tail beat
 if isempty(tPrior)
     tBeat = tBig(1);
 else
-   tBeat = tPrior(end); 
+    tBeat = tPrior(end);
 end
 
 % Set time for end of first tail beat
 if isempty(tFollow)
     error('No times following!')
 else
-   tBeat(1,2) = tFollow(1);
+    tBeat(1,2) = tFollow(1);
 end
 
 % Loop thru canidate times
 for i = 2:length(tBig)
     
-    % Starts of changes in angular direction prior to current iBig
+    % Starts of changes in prior to current iBig
     tPrior = tHd((tHd<tBig(i)) & (tHd>=(tBig(i-1)+D.p.min_dur)));
     
     % Ending of changes in angular direction after current peak
@@ -844,10 +516,6 @@ for i = 2:length(tBig)
         tBeat = [tBeat; tPrior(end) tFollow(1)];
     end
 end
-
-% Cull tail beats that don't create a large change in direction
-%iP = D.t<tBeat(1,1);
-%iF = (D.t>tBeat(1,2)) & (D.t<tBeat(2,1));
 
 tBeat2 = [];
 
@@ -865,17 +533,17 @@ for i = 1:size(tBeat,1)
     else
         % Set prior to previous follow
         iP = iF;
-       
+        
         % If no other beat, follow is remaining time
         if i==size(tBeat,1)
             iF = D.t>tBeat(i,2);
             
-        % Otherwise, follow stops at next beat
+            % Otherwise, follow stops at next beat
         else
             iF = (D.t>tBeat(i,2)) & (D.t<tBeat(i+1,1));
         end
     end
-        
+    
     % Change in heading
     dAng = mean(fnval(sp,D.t(iF))) - mean(fnval(sp,D.t(iP)));
     
@@ -887,7 +555,6 @@ end
 
 % Redefine tBeat
 tBeat = tBeat2; clear tBeat2
-
 
 % Time of small tail beats (candidate)
 tSmall = tPeak((abs(fnval(Dsp,tPeak))>D.p.yawRate_low));
@@ -918,15 +585,15 @@ for i = 1:length(tSmall)
         
         % Says if start is within any tailbeat
         inBeat1 = max((tStart<=(tBeat(:,2)+D.p.min_dur)) & ...
-                      (tStart>=(tBeat(:,1))));
+            (tStart>=(tBeat(:,1))));
         
         % Says if end (+min_dur) is within tailbeat
         inBeat2 = max(((tEnd+D.p.min_dur)<=tBeat(:,2)) & ...
-                      ((tEnd+D.p.min_dur)>=(tBeat(:,1))));
-                  
-       % Says if end is within tailbeat
-        inBeat3 = max((tEnd<=tBeat(:,2)) & (tEnd>=(tBeat(:,1))));           
-             
+            ((tEnd+D.p.min_dur)>=(tBeat(:,1))));
+        
+        % Says if end is within tailbeat
+        inBeat3 = max((tEnd<=tBeat(:,2)) & (tEnd>=(tBeat(:,1))));
+        
         % Skip logging, if within a tail beat
         if ~inBeat1 && ~inBeat2 && ~inBeat3
             
@@ -952,67 +619,91 @@ tmp  = [tmp;[zeros(size(tFlick,1),1) tFlick]];
 
 [tmp2,idx] = sort(tmp(:,2));
 
+% Store in 'D'
+
 D.tBeat = tmp(idx,:);
 
-function vis_beats(D)
+
+function vis_beats(D,fish)
 
 % Current smoothing spline fit
-sp      = D.sp.angPd;
+if strcmp(fish,'pred')
+    sp      = D.sp.angPd;
+    
+    % Predator speed
+    spd = give(D,'pred spd');
+    
+    % Get beats and flicks
+    tBeat  = D.tBeat(D.tBeat(:,1)==1,2:3);
+    tFlick = D.tBeat(D.tBeat(:,1)==0,2:3);
+else
+    sp      = D.sp.angPy;
+    
+    % Prey speed
+    spd = give(D,'prey spd');
+    
+    % Get beats and flicks
+    tBeat  = D.tBeatPy(D.tBeatPy(:,1)==1,2:3);
+    tFlick = D.tBeatPy(D.tBeatPy(:,1)==0,2:3);
+end
+
 Dsp     = fnder(sp,1);
 D2sp    = fnder(sp,2);
 
-% Predator speed
-spd_pd = give(D,'pred spd');
 
-% Get beats and flicks
-tBeat  = D.tBeat(D.tBeat(:,1)==1,2:3);
-tFlick = D.tBeat(D.tBeat(:,1)==0,2:3);
 
 figure
 subplot(5,1,1:2) %--------------------------
 fnplt(sp);grid on;yL=ylim;hold on;
 ylabel('Heading (rad)')
-for i=1:size(tBeat,1),
-    h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
-    set(h,'EdgeColor','none'); alpha(h,0.2)
-end
-for i=1:size(tFlick,1),
-    h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
-    set(h,'EdgeColor','none'); alpha(h,0.1)
-end
+
+addbeats(D,'pred')
 
 subplot(5,1,3) %--------------------------
 fnplt(Dsp);hold on; 
 ylabel('Dheading (rad/s)')
 plot(tBeat,fnval(Dsp,tBeat),'k+');yL=ylim;grid on
-for i=1:size(tBeat,1),
-    h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
-    set(h,'EdgeColor','none'); alpha(h,0.2)
-end
-for i=1:size(tFlick,1),
-    h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
-    set(h,'EdgeColor','none'); alpha(h,0.1)
-end
+
+addbeats(D,'pred')
 
 subplot(5,1,4) %--------------------------
-plot(D.t,spd_pd,'-');
-ylabel('Pred spd (?/s)')
+plot(D.t,spd,'-');
+ylabel('spd (?/s)')
 grid on;yL=ylim;hold on;
 
-for i=1:size(tBeat,1),
-    h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
-    set(h,'EdgeColor','none'); alpha(h,0.2)
-end
-for i=1:size(tFlick,1),
-    h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
-    set(h,'EdgeColor','none'); alpha(h,0.1)
-end
+addbeats(D,'prey')
 
 subplot(5,1,5) %--------------------------
 plot(D.t,D.bend,'-');
-ylabel('Beanding (a.u.)')
+ylabel('Bending (a.u.)')
 grid on;yL=ylim;hold on;
-%for i=1:length(tBeat),plot(tBeat(i).*[1 1],yL,'k-');end;hold off;
-%pause
-close
 
+
+function addbeats(D,fish)
+% Overlays periods of tail beats and tail flicks
+
+if strcmp(fish,'pred')
+    % Get beats and flicks
+    tBeat  = D.tBeat(D.tBeat(:,1)==1,2:3);
+    tFlick = D.tBeat(D.tBeat(:,1)==0,2:3);
+    clr1 = 'r';
+elseif strcmp(fish,'prey')
+    % Get beats and flicks
+    tBeat  = D.tBeatPy(D.tBeatPy(:,1)==1,2:3);
+    tFlick = D.tBeatPy(D.tBeatPy(:,1)==0,2:3);
+    clr1 = 'g';
+end
+
+grid on;
+yL=ylim;
+hold on;
+
+for i=1:size(tBeat,1),
+    h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],clr1);
+    set(h,'EdgeColor','none'); alpha(h,0.2)
+end
+for i=1:size(tFlick,1),
+    h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
+    set(h,'EdgeColor','none'); alpha(h,0.1)
+end
+hold off
