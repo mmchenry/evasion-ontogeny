@@ -3,7 +3,6 @@ function anaPool
 
 
 %TODO: Check bearing calculation.
-%TODO: Start to analyze the eye data.
 
 
 %% Code execution
@@ -11,7 +10,7 @@ function anaPool
 % Run anaData on all eligible sequences
 run_anaData = 0;
 
-% Force anaData to be re-run on all eligible sequences
+% Force anaData to be re-run all eligible sequences
 rerun_anaData = 0;
 
 % Make comparisons between flicks and tail beats
@@ -20,15 +19,21 @@ run_compare = 0;
 % Visualize timeseries data for all sequences
 vis_timeseries = 0;
 
+% Visualize eye data for all sequences
+vis_eyetimeseries = 0;
+
+% Visualize eye data for all sequences
+vis_eyepool = 0;
+
 % Visualize timeseries data for the predator and prey for all sequences
 vis_timepredprey = 0;
 
 % Visualize correlation btwn bearing before a turn and the change in
 % heading
-vis_bearing_vs_Dheading = 1;
+vis_bearing_vs_Dheading = 0;
 
 % Visualize glide stats
-vis_glidestats = 1;
+vis_glidestats = 0;
 
 
 %% Path definitions
@@ -148,6 +153,7 @@ if vis_glidestats
     legend('Still prey','Moving prey')
 end
 
+
 %% Analyze events before turn
 
 if vis_bearing_vs_Dheading
@@ -196,6 +202,47 @@ if vis_timepredprey
 end
 
 
+%% Visualize eye data
+
+if vis_eyetimeseries
+    dOut = execute_action(paths,batches,'vis_eyes(D,title_txt);');
+end
+
+
+%% Pool eye data
+
+if vis_eyepool
+    dOut = execute_action(paths,batches,'dOut = pool_eyes(D,dOut);');
+    
+    % Index of glides where prey moved
+    iMove = dOut(:,1)==1;
+    
+    % Change in angular position of prey
+    angPy = dOut(:,2)*180/pi;
+    
+    % Change in angular position of eyes
+    angEye = dOut(:,3)*180/pi;
+    
+    subplot(1,2,1)
+    plot(angPy(~iMove),angEye(~iMove),'o',...
+        [min(angPy(~iMove)) max(angPy(~iMove))],...
+        [min(angPy(~iMove)) max(angPy(~iMove))],'-');
+        axis equal
+        title('Motionless Prey')
+        xlabel('Change in pos. of prey (deg)')
+        ylabel('Change in pos. of eye (deg)')
+        
+    subplot(1,2,2)
+    plot(angPy(iMove),angEye(iMove),'o',...
+        [min(angPy(iMove)) max(angPy(iMove))],...
+        [min(angPy(iMove)) max(angPy(iMove))],'-');
+    axis equal
+    title('Moving Prey')
+    xlabel('Change in pos. of prey (deg)')
+    ylabel('Change in pos. of eye (deg)')
+end
+
+
 %% Compare behaviors
 
 if run_compare
@@ -231,6 +278,47 @@ if run_compare
 end
 
 
+
+function vis_eyes(D,title_txt)
+
+% Get adjusted values for eye angle
+tmp = give(D,'eye angs');
+angsR = unwrap(tmp(:,1));
+angsL = unwrap(tmp(:,2));
+
+% Visual range for right & left eyes
+rangeR = [(pi/2+D.p.vergAng/2)-D.p.fov (pi/2+D.p.vergAng/2)];
+rangeL = [rangeR(2)-D.p.vergAng rangeR(2)-D.p.vergAng+D.p.fov];
+
+rangeR = rangeR*180/pi;
+rangeL = rangeL*180/pi;
+
+figure
+subplot(4,1,1)
+plot(D.t,angsR*180/pi,'-')
+addbeats(D,'pred');
+xlabel('time');ylabel('R ang');grid on
+
+subplot(4,1,2)
+plot(D.t,angsL*180/pi,'-')
+addbeats(D,'pred');
+xlabel('time');ylabel('L ang');grid on
+
+subplot(4,1,[3:4])
+plot(D.t,unwrap(D.posPyR(:,3))*180/pi,'k-',...
+     [D.t(1) D.t(end)],rangeR(1).*[1 1],'r--',...
+     [D.t(1) D.t(end)],rangeR(2).*[1 1],'r--',...
+     [D.t(1) D.t(end)],rangeL(1).*[1 1],'b--',...
+     [D.t(1) D.t(end)],rangeL(2).*[1 1],'b--');
+addbeats(D,'pred');
+addbeats(D,'prey');
+legend('R','L')
+xlabel('time');ylabel('prey pos (R ang)');grid on
+
+%TODO: Calculate the angular positon of prey realtive to predator &
+%incorportate fov for both eyes
+
+ttt=3;
 
 function vis_predprey(D,title_txt,k)
 % Visualizes kinematic data for the predator and prey
@@ -370,6 +458,91 @@ subplot(5,1,5) %--------------------------
 plot(D.t,D.bend,'-');
 ylabel('Bending (a.u.)')
 grid on;yL=ylim;hold on;
+
+function dOut = pool_eyes(D,dOut)
+% Visualizes eye kinematics for the predator
+
+% Spline fit to predator heading
+sp      = D.sp.angPd;
+
+% Predator speed
+spd_pd = give(D,'pred spd');
+
+% Get beats and flicks
+tBeat  = D.tBeat(D.tBeat(:,1)==1,2:3);
+tFlick = D.tBeat(D.tBeat(:,1)==0,2:3);
+
+tmp = give(D,'angular comparison');
+dOut = [dOut; tmp];
+
+% % Gaze of each eye
+% gazeR = give(D,'gazeR');
+% gazeL = give(D,'gazeL');
+% 
+% % Angular position of eyes
+% angR = give(D,'angR');
+% angL = give(D,'angL');
+
+if 0
+    figure
+    subplot(5,1,1) %--------------------------
+    fnplt(sp);grid on;yL=ylim;hold on;
+    ylabel('Heading (rad)')
+    for i=1:size(tBeat,1),
+        h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
+        set(h,'EdgeColor','none'); alpha(h,0.2)
+    end
+    for i=1:size(tFlick,1),
+        h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
+        set(h,'EdgeColor','none'); alpha(h,0.1)
+    end
+    
+    title(title_txt)
+    
+    subplot(5,1,2) %--------------------------
+    plot(D.t,spd_pd,'-');
+    ylabel('Pred spd (?/s)')
+    grid on;yL=ylim;hold on;
+    
+    for i=1:size(tBeat,1),
+        h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
+        set(h,'EdgeColor','none'); alpha(h,0.2)
+    end
+    for i=1:size(tFlick,1),
+        h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
+        set(h,'EdgeColor','none'); alpha(h,0.1)
+    end
+    
+    subplot(5,1,3:4) %--------------------------
+    h = plotyy(D.t,unwrap(angR)*180/pi,D.t,unwrap(angL)*180/pi);
+    ylabel('Eye angle (deg)')
+    legend('R','L')
+    grid on;yL=ylim;hold on;
+    
+    for i=1:size(tBeat,1),
+        h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
+        set(h,'EdgeColor','none'); alpha(h,0.2)
+    end
+    for i=1:size(tFlick,1),
+        h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
+        set(h,'EdgeColor','none'); alpha(h,0.1)
+    end
+    
+    subplot(5,1,5) %--------------------------
+    plot(D.t,unwrap(gazeR)*180/pi,'-',D.t,unwrap(gazeL)*180/pi,'-');
+    ylabel('Gaze (deg)')
+    legend('R','L')
+    grid on;yL=ylim;hold on;
+    
+    for i=1:size(tBeat,1),
+        h = fill([tBeat(i,:) tBeat(i,2) tBeat(i,1)],[yL(1) yL(1) yL(2) yL(2)],'r');
+        set(h,'EdgeColor','none'); alpha(h,0.2)
+    end
+    for i=1:size(tFlick,1),
+        h = fill([tFlick(i,:) tFlick(i,2) tFlick(i,1)],[yL(1) yL(1) yL(2) yL(2)],'b');
+        set(h,'EdgeColor','none'); alpha(h,0.1)
+    end
+end
 
 function dOut = execute_action(paths,batches,action)
 % Performs 'action' on all sequences found in the given batches

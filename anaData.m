@@ -42,6 +42,12 @@ D.p.highSpdPy = 1;
 % Low threshold change in speed for a prey (?/s)
 D.p.lowSpdPy = 0.5;
 
+% Vergence angle (rad)
+D.p.vergAng = 33*pi/180;
+
+% Field of view (rad)
+D.p.fov = 186*pi/180;
+
 % Conversion factor to convert from pixels to cm.
 if str2num(batchName(1:4))==2016
     if str2num(batchName(6:7))>3
@@ -231,6 +237,46 @@ end
 clear eyes mid prey posTail
 
 
+%% Define the prey in the predator's FOR
+
+for i = 1:length(D.t)
+    
+    % Local coord system, Both eyes
+    D.tformR{i} = local_system_R(D.posR(i,1:2),D.posL(i,1:2));
+    D.tformL{i} = local_system_L(D.posR(i,1:2),D.posL(i,1:2));
+    
+    % Position of prey in the eye FORs
+    [xPyR,yPyR] = global_to_local(D.tformR{i},D.posPy(i,1),D.posPy(i,2));
+    [xPyL,yPyL] = global_to_local(D.tformL{i},D.posPy(i,1),D.posPy(i,2));
+    
+    angR = atan2(yPyR,xPyR);
+    angL = atan2(yPyL,xPyL);
+    
+    D.posPyR(i,:) =  [xPyR yPyR angR];
+    D.posPyL(i,:) =  [xPyL yPyL angL];
+    
+    % Visual check on transformation
+   if 0
+      subplot(2,2,[1 3])
+      plot([D.posR(i,1),D.posL(i,1)],[D.posR(i,2),D.posL(i,2)],'k-o',...
+          D.posPy(i,1),D.posPy(i,2),'ro',D.posR(i,1),D.posR(i,2),'k*')
+      axis equal;grid on
+      title('Intertial FOR')
+      
+      subplot(2,2,2)
+      plot(0,0,'k*',D.posPyR(i,1),D.posPyR(i,2),'ro')
+      title('Right eye')
+      axis equal;grid on
+      
+      subplot(2,2,4)
+      plot(0,0,'ko',D.posPyL(i,1),D.posPyL(i,2),'ro')
+      title('Left eye')
+      axis equal; grid on
+   end
+end
+
+
+
 %% Prelim analysis (Find peaks in angular velocity & time intervals)
 
 % Find periods of tail beating (predator)
@@ -352,6 +398,7 @@ end
 % Create the field 'tolSet', indicating that the tolerances have been set.
 sp.tolSet = 1;
 
+
 function bend = findBending(D,mid)
 % Defines metric of bending
 
@@ -387,6 +434,7 @@ else
     end
     
 end
+
 
 function D = find_prey_intervals(D)
 % Algorithm for determining the time intervals for tail beats and tail
@@ -459,6 +507,7 @@ if 0
          tBig,fnval(sp,tBig),'ro',tSmall,fnval(sp,tSmall),'go')
     addbeats(D,'prey') 
 end
+
 
 function D = find_pred_intervals(D)
 % Algorithm for determining the time intervals for tail beats and tail
@@ -707,3 +756,160 @@ for i=1:size(tFlick,1),
     set(h,'EdgeColor','none'); alpha(h,0.1)
 end
 hold off
+
+
+function R = local_system(origin,rost)
+
+% Check dimensions
+if size(origin,1)~=1 || size(origin,2)~=2 || size(rost,1)~=1 || size(rost,2)~=2 
+    error('inputs have incorrect dimensions')
+end
+
+% Retrieve local x axis to determine coordinate system
+xaxis(1,1) = rost(1) - origin(1);
+xaxis(1,2) = rost(2) - origin(2);
+xaxis(1,3) = 0;
+
+% Normalize to create a unit vector
+xaxis = xaxis./norm(xaxis);
+
+%Determine local y axis
+%Short hand of cross product of inertial z axis and local x axis
+yaxis = [-xaxis(2) xaxis(1) 0];
+
+% Normalize to create a unit vector
+yaxis = yaxis./norm(yaxis);
+
+%Determine local z axis
+zaxis = cross(xaxis,yaxis);
+
+% Normalize to create a unit vector
+zaxis = zaxis./norm(zaxis);
+
+%Create rotation matrix (from inertial axes to local axes)
+R = [xaxis; yaxis; [origin 1]];
+
+% Format for matlab
+tform = affine2d(R);
+
+
+function tform = local_system_R(eyeR,eyeL)
+% Defines a local coordinate system for the right eye where the y-axis
+% points anteriorly and the x-axis points to the right of the body and the
+% origin is at the center of the right eye. NOTE: Does not take into
+% account the orientation of the eye.
+
+% Right eye serves as origin
+origin = eyeR;
+
+% Define R eye relative to L eye
+xaxis(1,1) = eyeR(1) - eyeL(1);
+xaxis(1,2) = eyeR(2) - eyeL(2);
+xaxis(1,3) = 0;
+
+% Normalize to create a unit vector
+xaxis = xaxis./norm(xaxis);
+
+%Determine local y axis
+yaxis = [-xaxis(2) xaxis(1) 0];
+
+% Normalize to create a unit vector
+yaxis = yaxis./norm(yaxis);
+
+%Determine local z axis
+zaxis = cross(xaxis,yaxis);
+
+% Normalize to create a unit vector
+zaxis = zaxis./norm(zaxis);
+
+%Create rotation matrix (from inertial axes to local axes)
+R = [xaxis; yaxis; [origin 1]];
+
+% Format for matlab
+tform = affine2d(R);
+
+
+function tform = local_system_L(eyeR,eyeL)
+% Defines a coordinate system for the left eye where the y-axis points
+% posteriorly and is aligned with the heading. The x-axis points toward the
+% left side of the body.  NOTE: Does not take into account the orientation
+% of the eye.
+
+% Left eye serves as origin
+origin = eyeL;
+
+% Define L eye relative to R eye
+xaxis(1,1) = eyeL(1) - eyeR(1);
+xaxis(1,2) = eyeL(2) - eyeR(2);
+xaxis(1,3) = 0;
+
+% Normalize to create a unit vector
+xaxis = xaxis./norm(xaxis);
+
+%Determine local y axis
+yaxis = [-xaxis(2) xaxis(1) 0];
+
+% Normalize to create a unit vector
+yaxis = yaxis./norm(yaxis);
+
+%Determine local z axis
+zaxis = cross(xaxis,yaxis);
+
+% Normalize to create a unit vector
+zaxis = zaxis./norm(zaxis);
+
+%Create rotation matrix (from inertial axes to local axes)
+R = [xaxis; yaxis; [origin 1]];
+
+% Format for matlab
+tform = affine2d(R);
+
+
+function [xT,yT] = global_to_local(tform,x,y)
+% Assumes column vectors for coordinates
+
+% Check dimensions
+if tform.Dimensionality~=2
+    error('Code only handles 2D transformations')
+end
+
+pts = [x y];
+
+% Translate
+pts(:,1) = pts(:,1) - tform.T(3,1);
+pts(:,2) = pts(:,2) - tform.T(3,2);
+
+% Rotate points
+ptsT = [tform.T(1:2,1:2) * pts']';
+
+% Extract columns of points
+xT = ptsT(:,1);
+yT = ptsT(:,2);
+
+function [xT,yT] = local_to_global(tform,x,y)
+% Assumes columns vectors for coordinates
+
+% Check dimensions
+if tform.Dimensionality~=2
+    error('Code only handles 2D transformations')
+end
+
+% Loop thru columns of coordinates
+for i = 1:size(x,2)
+    
+    pts = [x(:,i) y(:,i)];
+    
+    % Rotate points
+    ptsT = (tform.T(1:2,1:2) \ pts')';
+    
+    % Translate global coordinates wrt origin
+    ptsT(:,1) = ptsT(:,1) + tform.T(3,1);
+    ptsT(:,2) = ptsT(:,2) + tform.T(3,2);
+    
+    % Extract columns of points
+    xT(:,i) = ptsT(:,1);
+    yT(:,i) = ptsT(:,2);
+    
+    clear ptsT pts
+end
+

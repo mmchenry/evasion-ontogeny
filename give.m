@@ -73,7 +73,7 @@ switch param
         % Step thru all beats
         for i = 1:length(beat_type) 
             
-            % If tail beat . . .
+            % If tail flick . . .
             if beat_type(i)==0
                 
                 % Log change in heading
@@ -165,6 +165,26 @@ switch param
         % Save angular size of prey
         [sp,dOut] = spaps(D.t,delta,D.sp.tol.Head*5);
 
+    case 'eye angs'
+ 
+        % Current angular eye positions
+        angR = D.posR(:,3);
+        angL = D.posL(:,3);
+        
+        angR2 = angR - mean([angR; angL]);
+        angL2 = angL - mean([angR; angL]);
+        
+        if 0
+            plot(D.t,angR*180/pi,'--',D.t,angL*180/pi,'--',...
+                 D.t,angR2*180/pi,'-',D.t,angL2*180/pi,'-');
+            grid on; 
+            
+            ttt=2;
+        end
+        
+        % Output
+        dOut = [angR2 angL2];      
+        
     case 'bearing unwrapped' % Bearing angle
         
         % Calculate unwrapped data
@@ -223,7 +243,101 @@ switch param
         
         % Save distance between prey & pred
         %[sp,dOut] = spaps(D.t,rangeMag,D.sp.tol.Head);
+    
+    case 'angR' % ANgular position of right eye
         
+        dOut = fnval(D.sp.angR,D.t);
+        
+        
+    case 'angL' % Angular position of left eye
+        
+        dOut = fnval(D.sp.angL,D.t);    
+        
+    case 'angular comparison' % Angular position of prey in R eye
+        
+        % Initial index
+        j = 1;
+        
+        % Indicies for turning tail beats that don't have motion during glide
+        iMoving = glideOverlap(D);
+        
+        % Get adjusted values for eye angle
+        tmp = give(D,'eye angs');
+        angsR = tmp(:,1);
+        angsL = tmp(:,2);
+        
+        % Step thru all beats
+        for i = 1:length(beat_type) 
+
+            % If tail beat . . .
+            if beat_type(i)==1
+                
+                % Current time values
+                t = D.t(iPost{i});
+                              
+                % Current angular eye positions
+                angR = angsR(iPost{i});
+                angL = angsL(iPost{i});
+                
+                % Current angular positions of prey
+                angPyR = D.posPyR(iPost{i},3);
+                angPyL = D.posPyL(iPost{i},3);
+                
+                % Visual range for right & left eyes
+                rangeR = [(pi/2+D.p.vergAng/2)-D.p.fov (pi/2+D.p.vergAng/2)];
+                rangeL = -[rangeR(2) rangeR(1)];
+                
+                % If always in the FOV of either eye . . .
+                if min((angPyR>=rangeR(1) & angPyR<=rangeR(2)) | ...
+                        (angPyL>=rangeL(1) & angPyL<=rangeL(2)))
+                    
+                    % If prey is closer to the diretcion of R eye
+                    if mean(abs(angPyR)) < mean(abs(angPyR))
+                        % Use angles from right
+                        angC   = unwrap(angR);
+                        angPyC = unwrap(angPyR);
+                        
+                    % Otherwise, use the left
+                    else
+                        angC   = unwrap(angL);
+                        angPyC = unwrap(angPyL);
+                    end
+                        
+                    % Fit to change prey angular position wrt both eyes
+                    cPy = polyfit(t,angPyC,1);
+                    
+                    % Fit to change in eye angles
+                    cAng = polyfit(t,angC,1);
+                    
+                    % Change in prey and eye
+                    Dpy  = polyval(cPy,t(end)) - polyval(cPy,t(1));
+                    Dang = polyval(cAng,t(end)) - polyval(cAng,t(1));    
+ 
+                    % Visual check on angular values
+                    if 0            
+                        subplot(2,1,1)
+                        plot(t,angPyC*180/pi,'ro',t,polyval(cPy,t)*180/pi,'r-');
+                        title('Angular prey position (rad)')
+                        %legend('R','R fit','L','L fit')
+                        
+                        subplot(2,1,2)
+                        plot(t,angC*180/pi,'ro',t,polyval(cAng,t)*180/pi,'r-')
+                        title('Eye angle (rad)')
+                        ttt=1;
+                        %legend('R','R fit','L','L fit')
+                    end
+                    
+                    % Store whether prey are moving, change in angles
+                    dOut(j,:) = [iMoving(i) Dpy Dang];
+
+                    % Advance index
+                    j = j + 1;
+                    
+                end
+            end
+        end
+
+         
     case 'gazeR' % Gaze angle (right eye)
         % Eye angles (world coordinates: [-pi pi])
         ReyeG = (D.posPd(:,3) + D.posR(:,3));

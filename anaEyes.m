@@ -937,7 +937,6 @@ R = [xaxis; yaxis; [origin 1]];
 % Format for matlab
 tform = affine2d(R);
 
-
 function [xT,yT] = global_to_local(tform,x,y)
 % Assumes column vectors for coordinates
 
@@ -958,7 +957,6 @@ ptsT = [tform.T(1:2,1:2) * pts']';
 % Extract columns of points
 xT = ptsT(:,1);
 yT = ptsT(:,2);
-
 
 function [xT,yT] = local_to_global(tform,x,y)
 % Assumes columns vectors for coordinates
