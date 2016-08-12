@@ -13,13 +13,13 @@ end
 redoMidline = 0;
 
 % indicator for reanalyzing prey
-redoPrey = 1;
+redoPrey = 0;
 
 % indicator for reanalyzing eyes 
 redoEyes = 0;
 
 % indicator for different mean image 
-newMean = 1;
+newMean = 0;
 
 % frame to begin analysis (useful for debugging)
 startFrame = 1;

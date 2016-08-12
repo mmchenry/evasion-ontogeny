@@ -10,8 +10,11 @@ function anaPool
 % Run anaData on all eligible sequences
 run_anaData = 0;
 
-% Force anaData to be re-run all eligible sequences
-rerun_anaData = 0;
+% Force anaData to be re-run on all eligible sequences
+rerun_anaData = 1;
+
+% Force acqMaster to run anaFrames to get midline data
+run_getmidline = 0; 
 
 % Make comparisons between flicks and tail beats
 run_compare = 0;
@@ -107,6 +110,10 @@ for i = 1:length(batches)
             % Check fields of midline data
             if ~isfield(mid,'sMid')
                 disp('    Note: No midline data');
+                if run_getmidline
+                    acqMaster(batches(i).name,seqs(j).name)
+                    disp('    Note: Getting midline data');
+                end
             end
             
             if runner
