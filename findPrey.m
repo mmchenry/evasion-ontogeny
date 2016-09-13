@@ -123,7 +123,7 @@ newMean2 = 1;
 imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
 
 
-%% Loop thru frames sequentially, finding the body midline
+%% Loop thru frames sequentially, finding the prey's position
 
     % Update status
     disp('      Analyzing frames . . .')

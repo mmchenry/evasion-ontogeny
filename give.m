@@ -50,17 +50,40 @@ switch param
         % Step thru all beats
         for i = 1:length(beat_type)
 
-            % Change in heading
-            dOut(j,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
-            
-            % Max speed during turn
-            dOut(j,2) = max(spd(iCurr{i}));
-            
-            % Duration of glide prior to beat
-            dOut(j,3) = range(D.t(iPre{i}));
-            
-            % Advance index
-            j = j + 1;
+            if i==1 
+                % Handle cases when there is no glide prior to a turn
+                if isempty(D.t(iPre{i}))
+                    % Change in heading
+                    dOut(1,1) = mean(D.posPd(iPost{i},3));
+                    % Max speed during turn
+                    dOut(1,2) = max(spd(iCurr{i}));
+                    % Duration of glide
+                    dOut(1,3) = NaN;
+                else
+                    % Change in heading
+                    dOut(1,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
+                    
+                    % Max speed during turn
+                    dOut(1,2) = max(spd(iCurr{i}));
+                    
+                    % Duration of glide prior to beat 
+                    dOut(1,3) = range(D.t(iPre{i}));
+                end
+                % Advance index
+                j = j + 1;
+            else
+                % Change in heading
+                dOut(j,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
+                
+                % Max speed during turn
+                dOut(j,2) = max(spd(iCurr{i}));
+                
+                % Duration of glide prior to beat
+                dOut(j,3) = range(D.t(iPre{i}));
+                
+                % Advance index
+                j = j + 1;
+            end
         end
         
     case 'flick stats'

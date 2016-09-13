@@ -1,4 +1,4 @@
-function anaEyes(dPath,vPath,startFrame,redoEyes)
+function [eyeData] = anaEyes(dPath,vPath,startFrame,redoEyes,getEye)
 
 % Indicator to visualize process
 showAna = 0;
@@ -70,10 +70,10 @@ end
 warning off
 
 % intial smoothing of data (use when midline data has a few errors)
-mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
-mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
-mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
-mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
+% mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
+% mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
+% mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
+% mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
 
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
@@ -84,7 +84,7 @@ sp.yHead = fnval(spaps(mid.t,mid.yHead,tol.head),mid.t);
 warning on
 
 % Visualize spline fits
-if 0
+if 1
     figure
     subplot(2,1,1)
     plot(mid.xRost,mid.yRost,'.',sp.xRost,sp.yRost,'-')
@@ -254,56 +254,95 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % Remove strips of black
         imStable(~im2bw(imStable,1-254/255)) = 255;        
         
-        % Get eye coordinate data
-        eL = give_eye(imStable,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
-        eR = give_eye(imStable,pEye.R,eyeArea.Reye,bk_clr,roi.rEye);
-        
-        % Compute eye position in global coordinates (output is 1x3)
-        Reye = [eR.xCent, eR.yCent, 1]*tform3.T*tform2.T*tform1.T;
-        Leye = [eL.xCent, eL.yCent, 1]*tform3.T*tform2.T*tform1.T;
-        
-        % Transformation object to stabilize eyes
-        if i == startFrame
+        % Get Eye position + angles
+        if getEye
             
-            eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer,metric);
-            eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer,metric);
+            % Get eye coordinate data
+            eL = give_eye(imStable,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
+            eR = give_eye(imStable,pEye.R,eyeArea.Reye,bk_clr,roi.rEye);
+            
+            % Compute eye position in global coordinates (output is 1x3)
+            Reye = [eR.xCent, eR.yCent, 1]*tform3.T*tform2.T*tform1.T;
+            Leye = [eL.xCent, eL.yCent, 1]*tform3.T*tform2.T*tform1.T;
+            
+            % Transformation object to stabilize eyes
+            if i == startFrame
+                
+                eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',optimizer,metric);
+                eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',optimizer,metric);
+                
+            else
+                
+                % Attempt to stabilize Right eye
+                try
+                    eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',...
+                        optimizer,metric,'InitialTransformation',pEye.R.tform);
+                    
+                    % If error above . . .
+                catch
+                    % Use data from previous iteration
+                    eR.tform = pEye.R.tform;
+                end
+                
+                % Attempt to stabilize Left eye
+                try
+                    eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',...
+                        optimizer,metric,'InitialTransformation',pEye.L.tform);
+                    
+                    % If error above . . .
+                catch
+                    % Use data from previous iteration
+                    eL.tform = pEye.L.tform;
+                end
+                
+            end
+            
+            % Stablize eye images
+            if showAna
+                imStableR = imwarp(pEye.R.im,eR.tform,'OutputView',...
+                    imref2d(size(pEye0.R.im)));
+                imStableL = imwarp(pEye.L.im,eL.tform,'OutputView',...
+                    imref2d(size(pEye0.L.im)));
+            end
+        
+            % Eye angles
+            eyes.rAngle(i,1) = atan2(eR.tform.T(1,2),eR.tform.T(1,1)) + rAng0;
+            eyes.lAngle(i,1) = atan2(eL.tform.T(1,2),eL.tform.T(1,1)) + lAng0;
+            
+            % Eye position in global coordinates
+            eyes.xReye(i,1) = Reye(1);
+            eyes.yReye(i,1) = Reye(2);
+            eyes.xLeye(i,1) = Leye(1);
+            eyes.yLeye(i,1) = Leye(2);
+            
+            % Eye data for next iteration
+            pEye.R = eR;
+            pEye.L = eL;
+            
+            % Indicator for eye data, (0 = no eye data)
+            eyes.eyeData = 1;
             
         else
+            % Store eye data as NaNs
             
-            % Attempt to stabilize Right eye
-            try
-                eR.tform = imregtform(eR.im,pEye0.R.im,'rigid',...
-                    optimizer,metric,'InitialTransformation',pEye.R.tform);
-                
-           % If error above . . .
-            catch
-                % Use data from previous iteration
-                eR.tform = pEye.R.tform;
-            end
-             
-            % Attempt to stabilize Left eye
-            try
-                eL.tform = imregtform(eL.im,pEye0.L.im,'rigid',...
-                    optimizer,metric,'InitialTransformation',pEye.L.tform);
-                
-           % If error above . . .
-            catch
-                % Use data from previous iteration
-                eL.tform = pEye.L.tform; 
-            end
+            % Eye angles
+            eyes.rAngle(i,1) = NaN;
+            eyes.lAngle(i,1) = NaN;
             
+            % Eye position in global coordinates
+            eyes.xReye(i,1) = NaN;
+            eyes.yReye(i,1) = NaN;
+            eyes.xLeye(i,1) = NaN;
+            eyes.yLeye(i,1) = NaN;
+            
+            % Indicator for eye data, (0 = no eye data)
+            eyes.eyeData = 0;
+        
         end
-         
-        % Stablize eye images
-        if showAna
-            imStableR = imwarp(pEye.R.im,eR.tform,'OutputView',...
-                imref2d(size(pEye0.R.im)));
-            imStableL = imwarp(pEye.L.im,eL.tform,'OutputView',...
-                imref2d(size(pEye0.L.im)));
-        end
+        
              
         % Inverse of first transformation             
-%         tmp = invert(tform1);
+        %         tmp = invert(tform1);
 
         % Head angle from first transformation (imHead)
         eyes.angl1(i,1) = atan2(tform1.T(1,2),tform1.T(1,1)) + anglCor;
@@ -311,28 +350,19 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % Head angle correction from image registration (imStable)
         eyes.angl2(i,1) = atan2(tform3.T(1,2),tform3.T(1,1));
         
+    %--------------------------------------%    
+    %-------- Check eyes.angl1 value ------%
+    %--------------------------------------%  
+    
         % Head angle in world coordinates
-        if sign(eyes.angl1)>=0 
+        if sign(eyes.angl1)>=0
             % if heading is between 0 and 180 ...
             eyes.hdAngle(i,1) = pi - (eyes.angl1(i,1) - eyes.angl2(i,1));
         else
             % ... otherwise
             eyes.hdAngle(i,1) = - pi - (eyes.angl1(i,1) - eyes.angl2(i,1));
         end
-                        
-        % Eye angles                
-        eyes.rAngle(i,1) = atan2(eR.tform.T(1,2),eR.tform.T(1,1)) + rAng0;
-        eyes.lAngle(i,1) = atan2(eL.tform.T(1,2),eL.tform.T(1,1)) + lAng0;
-        
-        % Eye position in global coordinates
-        eyes.xReye(i,1) = Reye(1);
-        eyes.yReye(i,1) = Reye(2);
-        eyes.xLeye(i,1) = Leye(1);
-        eyes.yLeye(i,1) = Leye(2); 
-        
-        % Eye data for next iteration
-        pEye.R = eR;
-        pEye.L = eL;   
+                           
         
         if iReset==frameResetIntrvl
             % reset eye data
@@ -344,7 +374,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
             % reset initial eye angles
             rAng0 = eyes.rAngle(i,1);
             lAng0 = eyes.lAngle(i,1);
-
+            
             % reset the reset counter
             iReset = 1;
         else
@@ -390,6 +420,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
             
             pause(0.01);
         end
+        
         clear tform tform1 tform2 tform3
      
         % Update status
@@ -435,6 +466,9 @@ else
     load([dPath filesep 'eye data.mat'])
 end
 
+
+% Eye data indicator (output)
+eyeData = eyes.eyeData;
 
 %% Visualize the results
 

@@ -2,24 +2,27 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-03-14';
-    seqName     = 'S08';
+    batchName   = '2016-03-23';
+    seqName     = 'S02';
 end
 
 
 %% Parameter values
 
 % indicator to redo midline tracking
-redoMidline = 0;
+redoMidline = 1;
 
 % indicator for reanalyzing prey
 redoPrey = 0;
 
 % indicator for reanalyzing eyes 
-redoEyes = 0;
+redoEyes = 1;
+
+% indicator for getting eye angles 
+getEye = 0;
 
 % indicator for different mean image 
-newMean = 0;
+newMean = 1;
 
 % frame to begin analysis (useful for debugging)
 startFrame = 1;
@@ -362,10 +365,13 @@ else
 end
 
 % Analyze eyes
-anaEyes(dPath,vPath,startFrame,redoEyes)
+[eyeData] = anaEyes(dPath,vPath,startFrame,redoEyes,getEye);
 
-% Track Prey
-findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
+% Track Prey (if there is eye data)
+if eyeData
+    % Call function to track prey
+    findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
+end
 
 
 % Analyze sequence data

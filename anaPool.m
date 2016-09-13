@@ -11,13 +11,16 @@ function anaPool
 run_anaData = 0;
 
 % Force anaData to be re-run on all eligible sequences
-rerun_anaData = 1;
+rerun_anaData = 0;
 
 % Force acqMaster to run anaFrames to get midline data
 run_getmidline = 0; 
 
 % Make comparisons between flicks and tail beats
-run_compare = 0;
+run_compare = 1;
+
+% Compare targeting vs. spontaneous modes
+run_modes = 0;
 
 % Visualize timeseries data for all sequences
 vis_timeseries = 0;
@@ -26,17 +29,17 @@ vis_timeseries = 0;
 vis_eyetimeseries = 0;
 
 % Visualize eye data for all sequences
-vis_eyepool = 0;
+vis_eyepool = 1;
 
 % Visualize timeseries data for the predator and prey for all sequences
-vis_timepredprey = 0;
+vis_timepredprey = 1;
 
 % Visualize correlation btwn bearing before a turn and the change in
 % heading
-vis_bearing_vs_Dheading = 0;
+vis_bearing_vs_Dheading = 1;
 
 % Visualize glide stats
-vis_glidestats = 0;
+vis_glidestats = 1;
 
 
 %% Path definitions
@@ -54,6 +57,7 @@ if run_anaData || rerun_anaData
 
 k = 1; 
 runner = 1;
+runnerPred = 0;
 
 % Loop thru batches
 for i = 1:length(batches)
@@ -105,6 +109,11 @@ for i = 1:length(batches)
             if ~isfield(eyes,'xReye')
                 disp('    Skippping anaData: eye data incomplete');
                 runner = 0;
+            % Check if eyeData contains only heading data
+            elseif isfield(eyes,'eyeData')
+                if ~eyes.eyeData
+                    runnerPred = 1;
+                end
             end
             
             % Check fields of midline data
@@ -125,10 +134,30 @@ for i = 1:length(batches)
                 
                 % Report success
                 disp('    Completed anaData!');
+            elseif runnerPred
+                if isempty(dir([dPath filesep 'merged data(pred).mat']))
+                    
+                    disp('   Running anaDataPred');
+                    % Run anaDataPred
+                    eyeData = eyes.eyeData;
+                    D = anaDataPred(mid,eyes,batches(i).name,eyeData);
+                
+                    % Save D structure
+                    save([dPath filesep 'merged data(pred).mat'],'D')
+                
+                    % Report success
+                    disp('    Completed anaDataPred!')
+                else
+                    % load data ('D')
+                    load([dPath filesep 'merged data(pred).mat'])
+                end
+                
             end
             
             % Reset runner for next sequence
             runner = 1;
+            % Reset runner for next sequence
+            runnerPred = 0;
         end
         
 
@@ -199,6 +228,9 @@ end
 
 if vis_timeseries
     execute_action(paths,batches,'vis_beats(D,title_txt)');
+    if run_modes
+        execute_action(paths,batches,'vis_beats(D,title_txt)',1);
+    end
 end
 
 
@@ -282,6 +314,75 @@ if run_compare
     axis square
     
     legend('Turns','Flicks')  
+end
+
+%% Compare targeted vs. spontaneous modes
+
+if run_compare && run_modes
+    
+    % Gather tailbeat stats for spontaneous swimming
+    t_stats2 = execute_action(paths,batches,...
+        'dOut = [dOut; give(D,''turn stats'')];',1);
+    
+    % Gather tail flick stats for spontaneous swimming
+    f_stats2 = execute_action(paths,batches,...
+        'dOut = [dOut; give(D,''flick stats'')];',1);
+    
+    % Plot results
+    figure
+    
+    % Plot change in heading
+    subplot(2,2,1)
+    h1 = histogram(abs(t_stats(:,1))*180/pi,'Normalization','pdf');
+    hold on
+    h2 = histogram(abs(f_stats(:,1))*180/pi,'Normalization','pdf');
+    hold off
+    xlabel('Change in heading');
+    ylabel('PDF')
+    axis square
+    title('Targeted Swimming')
+    
+    subplot(2,2,3)
+    h1 = histogram(abs(t_stats2(:,1))*180/pi,'Normalization','pdf');
+    hold on
+    h2 = histogram(abs(f_stats2(:,1))*180/pi,'Normalization','pdf');
+    hold off
+    xlabel('Change in heading');
+    ylabel('PDF')
+    axis square
+    title('Spontaneous Swimming')
+    
+    % Plot max speed
+    subplot(2,2,2)
+    h1 = histogram(t_stats(:,2),'Normalization','pdf');
+    hold on
+    h2 = histogram(f_stats(:,2),'Normalization','pdf');
+    hold off
+    xlabel('Max speed (?/s)');
+    axis square
+    
+    legend('Turns','Flicks')  
+    
+    subplot(2,2,4)
+    h1 = histogram(t_stats2(:,2),'Normalization','pdf');
+    hold on
+    h2 = histogram(f_stats2(:,2),'Normalization','pdf');
+    hold off
+    xlabel('Max speed (?/s)');
+    axis square
+    
+    legend('Turns (spont.)','Flicks(spont.)')  
+    
+    % Plot glide durations
+    figure
+    histogram(t_stats(:,3),'Normalization','pdf');
+    hold on
+    histogram(t_stats2(:,3),'Normalization','pdf');
+    hold off
+    xlabel('Glide duration (s)');
+    axis square
+    
+    legend('Targeted', 'Spontaneous')
 end
 
 
@@ -551,8 +652,20 @@ if 0
     end
 end
 
-function dOut = execute_action(paths,batches,action)
+function dOut = execute_action(paths,batches,action,mode)
 % Performs 'action' on all sequences found in the given batches
+
+% Set default mode as targeted swimming (mode=0)
+if nargin < 4
+    mode = 0;
+end
+
+% Set turn data name based on 'mode' indicator
+if mode
+    dataName = 'merged data(pred).mat';
+else
+    dataName = 'merged data.mat';
+end
 
 % Set empty default
 dOut = [];
@@ -572,13 +685,13 @@ for i = 1:length(batches)
         dPath = [paths.data filesep batches(i).name filesep seqs(j).name];
         
         % If turn data exists (i.e. anaData has been run) . . .
-        if ~isempty(dir([dPath filesep 'merged data.mat']))
+        if ~isempty(dir([dPath filesep dataName]))
             
             % Title text for plots
             title_txt = [batches(i).name ': ' seqs(j).name];
             
             % Load 'D' for sequence
-            load([dPath filesep 'merged data.mat'])
+            load([dPath filesep dataName])
             
             % Execute the action
             eval(action)         
