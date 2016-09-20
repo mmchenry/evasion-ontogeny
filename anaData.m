@@ -104,7 +104,7 @@ fNames = fieldnames(eyes);
 
 % Extract eye/heading data range specified by start & end frames
 for j=1:numel(fNames)
-    if ~strcmp(fNames{j},'tol')
+    if ~(strcmp(fNames{j},'tol') || strcmp(fNames{j},'eyeData'))
         eyes.(fNames{j}) = eyes.(fNames{j})(sp.frStart:sp.frEnd,:);
     end
 end

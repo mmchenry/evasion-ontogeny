@@ -194,7 +194,7 @@ clear eyes mid prey posTail
 D = find_pred_intervals(D);
 
 % Visualize results
-if 0
+if 1
     vis_beats(D,'pred')    
 end
 
@@ -315,6 +315,9 @@ if ~isfield(mid,'sMid')
     bend = zeros(length(mid.t),1);
     
 else
+    % Initialize bend parameter vector
+    bend = zeros(length(mid.t),1);
+    
     % Loop thru midline points
     for i = 1:length(mid.sMid)
         
@@ -554,7 +557,7 @@ plot(D.t,spd,'-');
 ylabel('spd (?/s)')
 grid on;yL=ylim;hold on;
 
-addbeats(D,'prey')
+% addbeats(D,'prey')
 
 subplot(5,1,5) %--------------------------
 plot(D.t,D.bend,'-');

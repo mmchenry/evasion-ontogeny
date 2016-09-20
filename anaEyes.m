@@ -7,12 +7,12 @@ showAna = 0;
 adjustOn = 0;
 
 % Tolerance for spline fits
-tol.head = 0.005e2;         % default: tol.head = 1e2
-tol.rost = 0.035e1;         % default: tol.rost = 0.5e1
+tol.head = 0.05e2;         % default: tol.head = 1e2
+tol.rost = 0.05e1;         % default: tol.rost = 0.5e1
 
 % Span of data to consider for initial smoothing
-tol.midRost = 0.005;
-tol.midHead = 0.01;
+tol.midRost = 0.01;
+tol.midHead = 0.005;
 
 % Store 'tol' field in 'eyes' structure
 eyes.tol = tol;
@@ -70,10 +70,10 @@ end
 warning off
 
 % intial smoothing of data (use when midline data has a few errors)
-% mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
-% mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
-% mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
-% mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
+mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
+mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
+mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
+mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
 
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
@@ -100,6 +100,8 @@ if 1
     ylabel('Head y')
     xlabel('Head x')   
 end
+
+pause
 
 % Cranial length
 cran_len = mean(sqrt((sp.xHead-sp.xRost).^2 + (sp.yHead-sp.yRost).^2));

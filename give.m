@@ -66,7 +66,7 @@ switch param
                     % Max speed during turn
                     dOut(1,2) = max(spd(iCurr{i}));
                     
-                    % Duration of glide prior to beat 
+                    % Duration of glide prior to beat
                     dOut(1,3) = range(D.t(iPre{i}));
                 end
                 % Advance index
@@ -78,13 +78,20 @@ switch param
                 % Max speed during turn
                 dOut(j,2) = max(spd(iCurr{i}));
                 
-                % Duration of glide prior to beat
-                dOut(j,3) = range(D.t(iPre{i}));
+                try
+                    % Duration of glide prior to beat
+                    dOut(1,3) = range(D.t(iPre{i}));
+                catch
+                    % No glide in prior beat (fish not moving?)
+                    dOut(1,3) = NaN;
+                end
                 
                 % Advance index
                 j = j + 1;
+                
             end
         end
+        
         
     case 'flick stats'
         

@@ -15,8 +15,8 @@ frTot = length(B);
 % Look for mean image
 a2 = dir([dPath filesep 'meanImage.tif']);
 
-% Calculate mean image if it does not exist
-if isempty(a2) && (~newMean || ~newMean2)
+% Calculate mean image if it does not exist & we want to use meanImage
+if isempty(a2) && ~(newMean || newMean2)
     
     % Define list of frame numbers, depending on max number of frames
     % requested
@@ -152,6 +152,8 @@ elseif newMean
     else
         imMean = imread([dPath filesep 'meanImage2.tif']);
     end
+    
+    disp('   Using meanImage2 for bkgnd subtraction...')
     
 % create a new background image for prey, and use as mean image
 elseif newMean2

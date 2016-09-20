@@ -2,7 +2,7 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-03-23';
+    batchName   = '2016-08-25';
     seqName     = 'S02';
 end
 
@@ -10,13 +10,13 @@ end
 %% Parameter values
 
 % indicator to redo midline tracking
-redoMidline = 1;
+redoMidline = 0;
 
 % indicator for reanalyzing prey
 redoPrey = 0;
 
 % indicator for reanalyzing eyes 
-redoEyes = 1;
+redoEyes = 0;
 
 % indicator for getting eye angles 
 getEye = 0;
@@ -46,7 +46,7 @@ p.numVis = 50;
 p.max_frames = 100;
 
 % Frame rate (fps)
-p.framerate = 250;
+p.framerate = 500;
 
 % Frames to skip initially in analysis
 %p.skipFrame_start = 5;
@@ -364,11 +364,11 @@ else
     % NOTE: midline data is loaded by anaEyes and/or by findPrey
 end
 
-% Analyze eyes
+% Analyze eyes + Get heading
 [eyeData] = anaEyes(dPath,vPath,startFrame,redoEyes,getEye);
 
 % Track Prey (if there is eye data)
-if eyeData
+if eyeData && redoPrey
     % Call function to track prey
     findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
 end

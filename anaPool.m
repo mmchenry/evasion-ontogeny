@@ -20,7 +20,7 @@ run_getmidline = 0;
 run_compare = 1;
 
 % Compare targeting vs. spontaneous modes
-run_modes = 0;
+run_modes = 1;
 
 % Visualize timeseries data for all sequences
 vis_timeseries = 0;
@@ -29,10 +29,10 @@ vis_timeseries = 0;
 vis_eyetimeseries = 0;
 
 % Visualize eye data for all sequences
-vis_eyepool = 1;
+vis_eyepool = 0;
 
 % Visualize timeseries data for the predator and prey for all sequences
-vis_timepredprey = 1;
+vis_timepredprey = 0;
 
 % Visualize correlation btwn bearing before a turn and the change in
 % heading
@@ -79,7 +79,7 @@ for i = 1:length(batches)
             
             disp(' '); disp(['Starting ' title_txt])
             
-            % Load midine data, if present
+            % Load midline data, if present
             if ~isempty(dir([dPath filesep 'midline data.mat']))
                 % Load predator midline data ('mid')
                 load([dPath filesep 'midline data.mat'])
@@ -154,9 +154,9 @@ for i = 1:length(batches)
                 
             end
             
-            % Reset runner for next sequence
+            % Reset runner (prey) for next sequence
             runner = 1;
-            % Reset runner for next sequence
+            % Reset runner (pred) for next sequence
             runnerPred = 0;
         end
         
