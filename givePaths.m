@@ -20,8 +20,8 @@ else
     if ~isempty(dir([filesep path]))
         
         % Directory root
-        root     = '/Volumes/BackUp/ZF_visuomotor';
-        vid_root = '/Volumes/BackUp/ZF_visuomotor';
+        root     = '/Users/A_Soto/Desktop/predStrategy';
+        vid_root = '/Users/A_Soto/Desktop/predStrategy';
     
     else
         error('This computer is not recognized')
