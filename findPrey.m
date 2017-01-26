@@ -1,4 +1,4 @@
-function findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
+function findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p,endFrame)
 % Steps thru frames, creates a thumbnail image and then extracts the
 % position of the prey and its orientation
 
@@ -9,7 +9,7 @@ function findPrey(dPath,vPath,startFrame,redoPrey,includeCalibration,p)
 % reportStatus    = 1;
 
 % Indicator for visualising progress
-% figOn           = 0;
+figOn           = 0;
 
 % Indicator for adjusting image contrast
 adjustON        = 0;
@@ -42,9 +42,9 @@ else
 end
 
 % Set default end frame and skipFrame
-if nargin < 11
+if nargin < 8
     skipFrame = 0;
-    if nargin < 10
+    if nargin < 7
         endFrame = length(B);
     end
 end
@@ -163,11 +163,13 @@ imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
         roi = [xMin yMin; xMin+w yMin; xMin+w yMin+h; xMin yMin+h;...
                xMin yMin];
         
+           if k==1
         % Find blobs that define the fish in frame
         blob = findBlobs(im,imMean,pPrey,adjustON,roi);
+           end
         
         % If blob is not a nan . . .
-        if ~isnan(blob.im(1))
+        if ~isnan(blob.im(1)) && k<2
 
             % Store time
             prey.t(k,1) = k./p.framerate;
@@ -195,13 +197,13 @@ imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
             % otherwise ... 
         else
             % Display warning
-            warning(['No fish found in ' B(cFrame).filename]);
+%             warning(['No fish found in ' B(cFrame).filename]);
             
             % Store time
             prey.t(k,1) = k./p.framerate;
 
             % Store prey blob roi
-            prey.roi_blob(k,:) = blob.roi_blob;
+            prey.roi_blob(k,:) = NaN;
             
             % Store nans
             prey.xPrey(k,1)     = nan;
@@ -216,8 +218,8 @@ imMean = makeMeanImage(dPath,vPath,cal,B,0,newMean2);
         pBlob = blob;
         
         % Update status
-        disp(['          Prey done for ' num2str(k) ' of ' ...
-            num2str(length(frames))])
+%         disp(['          Prey done for ' num2str(k) ' of ' ...
+%             num2str(length(frames))])
     end    
 
 %% Close execution
@@ -258,8 +260,8 @@ function blob = findBlobs(imStart,imMean,pPrey,adjustON,roi)
 % Adjust grayscale values if adjustON indicator is set to 1
 
 if adjustON
-    im     = (imadjust(imStart));
-    imSub  = (imadjust(imMean));
+    im     = imadjust(imStart);
+    imSub  = imadjust(imMean);
 else
     im = imStart;
     imSub = imMean;
@@ -274,7 +276,7 @@ warning on
 im = imcomplement(im);
 
 % Use predator roi to exclude predator region
-roiP = roipoly(im,roi(:,1),roi(:,2));
+% roiP = roipoly(im,roi(:,1),roi(:,2));
 
 % Find threshold
 tVal = min([0.95 graythresh(im)+0.1]);

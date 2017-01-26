@@ -7,12 +7,12 @@ showAna = 0;
 adjustOn = 0;
 
 % Tolerance for spline fits
-tol.head = 0.05e2;         % default: tol.head = 1e2
-tol.rost = 0.05e1;         % default: tol.rost = 0.5e1
+tol.head = 0.0025e2;         % default: tol.head = 1e2
+tol.rost = 0.015e1;         % default: tol.rost = 0.5e1
 
 % Span of data to consider for initial smoothing
-tol.midRost = 0.01;
-tol.midHead = 0.005;
+tol.midRost = 0.0175;
+tol.midHead = 0.025;
 
 % Store 'tol' field in 'eyes' structure
 eyes.tol = tol;
@@ -57,7 +57,7 @@ pEye.L.tVal = 40;
 %% Get Mean image
 
 if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
-    newMean = 1;
+    newMean = 0;
     
     imMean = makeMeanImage(dPath,vPath,[],B,newMean,0);
 end
@@ -70,10 +70,10 @@ end
 warning off
 
 % intial smoothing of data (use when midline data has a few errors)
-mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
-mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
-mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
-mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
+% mid.xRost = smooth(mid.xRost,tol.midRost,'rloess');
+% mid.yRost = smooth(mid.yRost,tol.midRost,'rloess');
+% mid.xHead = smooth(mid.xHead,tol.midHead,'rloess');
+% mid.yHead = smooth(mid.yHead,tol.midHead,'rloess');
 
 % Spline fit the data
 sp.xRost = fnval(spaps(mid.t,mid.xRost,tol.rost),mid.t);
@@ -145,7 +145,7 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
     im = imread([vPath filesep a(startFrame).name]);
     
     % cropped head image, aligned with horizontal
-    [imHead0,~] = giveHeadIM(im,sp,roi,startFrame,0);
+    [imHead0,~] = giveHeadIM(im,sp,roi,1,0);
     
     f = figure;
     imshow(imHead0,'InitialMagnification','fit')
@@ -248,16 +248,16 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
         % 'imHead' from 'im'
 
         % Transformation object to stablize head wrt imHead0
-        tform3 = imregtform(imHead,imHead0,'rigid',optimizer,metric);
-         
-        % Stablize head image
-        imStable = imwarp(imHead,tform3,'OutputView',imref2d(size(imHead0)));
-        
-        % Remove strips of black
-        imStable(~im2bw(imStable,1-254/255)) = 255;        
+        tform3 = imregtform(imHead,imHead0,'rigid',optimizer,metric);        
         
         % Get Eye position + angles
         if getEye
+            
+            % Stablize head image
+            imStable = imwarp(imHead,tform3,'OutputView',imref2d(size(imHead0)));
+            
+            % Remove strips of black
+            imStable(~im2bw(imStable,1-254/255)) = 255;
             
             % Get eye coordinate data
             eL = give_eye(imStable,pEye.L,eyeArea.Leye,bk_clr,roi.rEye);
@@ -367,6 +367,15 @@ if isempty(dir([dPath filesep 'eye data.mat'])) || redoEyes
                            
         
         if iReset==frameResetIntrvl
+            
+            if ~getEye
+                % Stablize head image
+                imStable = imwarp(imHead,tform3,'OutputView',imref2d(size(imHead0)));
+            
+                % Remove strips of black
+                imStable(~im2bw(imStable,1-254/255)) = 255;
+            end
+            
             % reset eye data
             pEye0 = pEye;
             
@@ -482,21 +491,21 @@ totFrames = length(gazeR);
 figure
 subplot(2,1,1);
 % plot(eyes.t,unwrap(eyes.hdAngle-eyes.hdAngle(1))./pi*180,'-k');
-plot(eyes.t(1:totFrames)*250,unwrap(eyes.hdAngle)./pi*180,'-k');
+plot(eyes.t(1:totFrames)*500,unwrap(eyes.hdAngle)./pi*180,'-k');
 hold on
 % plot(eyes.t,gazeR-gazeR(1),'-',...
 %      eyes.t,gazeL-gazeL(1),'-');
- plot(eyes.t(1:totFrames)*250,gazeR,'-',...
-     eyes.t(1:totFrames)*250,gazeL,'-');
+ plot(eyes.t(1:totFrames)*500,gazeR,'-',...
+     eyes.t(1:totFrames)*500,gazeL,'-');
 grid on;
 % xlabel('Time (s)')
 xlabel('Frame number')
 ylabel('Head/Gaze angle (deg)')
 
 subplot(2,1,2);
-plot(eyes.t(1:totFrames)*250,eyes.rAngle./pi*180,'-')
+plot(eyes.t(1:totFrames)*500,eyes.rAngle./pi*180,'-')
 hold on
-plot(eyes.t(1:totFrames)*250,eyes.lAngle./pi*180,'-')
+plot(eyes.t(1:totFrames)*500,eyes.lAngle./pi*180,'-')
 legend('R','L');
 grid on
 % xlabel('Time (s)')
