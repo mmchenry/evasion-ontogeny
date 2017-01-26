@@ -52,10 +52,37 @@ D.p.fov = 186*pi/180;
 
 % Conversion factor to convert from pixels to cm.
 if str2num(batchName(1:4))==2016
-    if str2num(batchName(6:7))>3
-        D.p.cF = 0.0050;        % for experiments after 03-23-16
-    else
-        D.p.cF = 0.0064;        % for experiments before 3-23-16
+    switch batchName(6:7)
+        case {'02','03'}
+            D.p.cF = 0.0064;        % for experiments before 03-23-16
+            
+            if strcmp(batchName,'2016-03-23')
+                D.p.cF = 0.005;        % for experiments on 03-23-16
+            end
+            
+        case {'04','06'}
+            D.p.cF = 0.0050;        % for experiments in April 2016
+            
+        case {'08'}
+            D.p.cF = 0.0065;        % for experiments in August 2016
+            
+        case {'09','10'}
+            D.p.cF = 0.00763;       % for experiments in Sept. 2016
+            
+            if strcmp(batchName,'2016-09-08')
+                D.p.cF = 0.00625;       % for experiments on 09-08-16
+            end
+            
+%     if str2num(batchName(6:7))>3
+%         D.p.cF = 0.0050;        % for experiments after 03-23-16
+%     elseif str2num(batchName(6:7))>7
+%         D.p.cF = 0.0065;        % for experiments after 06-17-16
+%     elseif str2num(batchName(6:7))>9
+%         D.p.cF = 0.00763;       % for experiments after 09-12-16
+%     elseif strcmp(batchName,'2016-09-08')
+%         D.p.cF = 0.00625;       % for experiments on 09-08-16
+%     else
+%         D.p.cF = 0.0064;        % for experiments before 03-23-16
     end
 else
     error('This calibration code assumes all experiments run in 2016');
@@ -89,11 +116,8 @@ for j=1:numel(fNames)
 end
 
 % Get field names in structure 'eyes'
-% if eyeData
-    fNames = fieldnames(eyes);
-% else
-%     fNames = fieldnames(eyes.tol);
-% end
+fNames = fieldnames(eyes);
+
 
 % Extract eye/heading data range specified by start & end frames
 for j=1:numel(fNames)
@@ -122,6 +146,10 @@ D.t    = eyes.t;
 
 % Calculate tail bending index
 mid.bend = findBending(D,mid);
+
+% Calculate midline arclength and store in 'D' (cm)
+D.bodyL = findLength(mid) * D.p.cF;
+
 
 clear indexPrey indxPred ind1 ind2 indxPrey indxPred indxEyes fNames j 
 
@@ -163,14 +191,14 @@ warning on
 if vis
     % Plot x-position
     subplot(3,1,1);
-    plot(mid.t,mid.xRost,'r.',D.t,D.posPd(:,1),'k-')
+    plot(mid.t,mid.xRost.*D.p.cF,'r.',D.t,D.posPd(:,1),'k-')
     grid on
     ylabel('xRost')
     title('Spline fits')
     
-    % Plot heading angle
+    % Plot heading angle (unwrapped heading)
     subplot(3,1,2);
-    plot(mid.t,eyes.hdAngle,'r.',D.t,D.posPd(:,3),'k-')
+    plot(mid.t,unwrap(eyes.hdAngle),'r.',D.t,D.posPd(:,3),'k-')
     grid on 
     ylabel('Head angle (rad)')
 
@@ -180,8 +208,7 @@ if vis
     grid on 
     ylabel('Bending index')
 
-    %beep
-    pause
+%     beep
 end
 
 % Clear rawdata variables
@@ -194,7 +221,7 @@ clear eyes mid prey posTail
 D = find_pred_intervals(D);
 
 % Visualize results
-if 1
+if 0
     vis_beats(D,'pred')    
 end
 
@@ -323,19 +350,27 @@ else
         
         % Check for empty midline data
         if isempty(mid.sMid{i})
-            bend = zeros(length(mid.t),1);
-            break
+            try 
+                bend(i,1) = mean(bend(i-4:i-1,1));
+            catch
+                bend(i,1) = 0;
+            end
+        else
+            % Extract current midline points (normalize to midline length)
+            s = mid.sMid{i}./mid.sMid{i}(end);
+            x = mid.xMid{i}./mid.sMid{i}(end);
+            y = mid.yMid{i}./mid.sMid{i}(end);
+            
+            % predicted (x,y) values from linear fit
+            cX = polyfit(s,x,1);
+            cY = polyfit(s,y,1);
+            
+            % Difference between data and predicted values
+            A = x-polyval(cX,s); B = y-polyval(cY,s);
+            
+            % Compute bend parameter
+            bend(i,1) = sum(hypot(A,B));
         end
-        
-        % Extract
-        s = mid.sMid{i}./mid.sMid{i}(end);
-        x = mid.xMid{i}./mid.sMid{i}(end);
-        y = mid.yMid{i}./mid.sMid{i}(end);
-        
-        cX = polyfit(s,x,1);
-        cY = polyfit(s,y,1);
-        
-        bend(i,1) = sum(sqrt((x-polyval(cX,s)).^2 + (y-polyval(cY,s)).^2));
         
         if 0
             plot(x,y,'k-',polyval(cX,s),polyval(cY,s),'-r')
@@ -345,6 +380,44 @@ else
     end
     
 end
+
+function bodyL = findLength(mid)
+% Computes length of midline segments, to be used for computing fish length
+
+% If no midline data . . .
+if ~isfield(mid,'sMid')
+    bodyL = zeros(length(mid.t),1);
+    
+else
+    % Initialize bend parameter vector
+    bodyL = zeros(length(mid.t),1);
+    
+    % Loop thru midline points
+    for i = 1:length(mid.sMid)
+        
+        % Check for empty midline data
+        if isempty(mid.sMid{i})
+            try
+                bodyL(i,1) = mean(bodyL(i-4:i-1,1));
+            catch
+                bodyL(i,1) = 0;
+            end
+        else
+            
+            % Extract arc-length data
+            bodyL(i,1) = mid.sMid{i}(end);
+            
+%             % Sum up the arc length values for current frame
+%             bodyL(i,1) = sum(s);
+        end
+%             if 0
+%                 plot(x,y,'k-',polyval(cX,s),polyval(cY,s),'-r')
+%                 title(['t = ' num2str(D.t(i)) ': bend = ' num2str(bend(i))])
+%                 pause(0.3)
+%             end
+    end
+end
+
 
 function D = find_pred_intervals(D)
 % Algorithm for determining the time intervals for tail beats and tail
@@ -554,7 +627,7 @@ addbeats(D,'pred')
 
 subplot(5,1,4) %--------------------------
 plot(D.t,spd,'-');
-ylabel('spd (?/s)')
+ylabel('spd (cm/s)')
 grid on;yL=ylim;hold on;
 
 % addbeats(D,'prey')

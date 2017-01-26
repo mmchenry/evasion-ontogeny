@@ -10,7 +10,7 @@ dOut = [];
 if isfield(D,'tBeat')
     for i = 1:size(D.tBeat,1)
         
-        %Log type
+        % Log type
         beat_type(i,1) = D.tBeat(i,1);
         
         % Index for current beat
@@ -34,6 +34,8 @@ if isfield(D,'tBeat')
             iPost{i} = (D.t>D.tBeat(i,3)) & (D.t<D.tBeat(i+1,2));
         end
     end
+    
+    clear i
 end
 
 
@@ -42,23 +44,40 @@ switch param
 
     case 'turn stats'
         
+        % NOTE: This gathers data for turns AND flicks
+        
+        % Get translational speed
         spd = give(D,'pred spd');
+        
+        % Get angular velocity
+        angVel = give(D,'ang vel');
         
         % Initial index
         j = 1;
         
+        % Preallocate dOut array
+        dOut = zeros(length(beat_type),7);
+        
         % Step thru all beats
         for i = 1:length(beat_type)
-
+            
             if i==1 
                 % Handle cases when there is no glide prior to a turn
                 if isempty(D.t(iPre{i}))
                     % Change in heading
-                    dOut(1,1) = mean(D.posPd(iPost{i},3));
+                    dOut(1,1) = mean(D.posPd(iPost{i},3)) - D.posPd(iCurr{i}(1),3);
                     % Max speed during turn
                     dOut(1,2) = max(spd(iCurr{i}));
                     % Duration of glide
                     dOut(1,3) = NaN;
+                    % Average speed after turn
+                    dOut(1,4) = mean(spd(iPost{i}));
+                    % Max angular velocity during turn
+                    dOut(1,5) = max(angVel(iCurr{i}));
+                    % Average angular velocity during turn
+                    dOut(1,6) = mean(angVel(iCurr{i}));
+                    % Mean speed during turn
+                    dOut(1,7) = mean(spd(iCurr{i}));
                 else
                     % Change in heading
                     dOut(1,1) = mean(D.posPd(iPost{i},3)) - mean(D.posPd(iPre{i},3));
@@ -66,8 +85,21 @@ switch param
                     % Max speed during turn
                     dOut(1,2) = max(spd(iCurr{i}));
                     
-                    % Duration of glide prior to beat
-                    dOut(1,3) = range(D.t(iPre{i}));
+                    % Duration of glide prior to beat 
+                    dOut(1,3) = NaN; % disregard 1st glide range(D.t(iPre{i}));
+                                        
+                    % Average speed after turn
+                    dOut(1,4) = mean(spd(iPost{i}));
+                                        
+                    % Max angular velocity during turn
+                    dOut(1,5) = max(angVel(iCurr{i}));
+                    
+                    % Average angular velocity during turn
+                    dOut(1,6) = mean(angVel(iCurr{i}));
+                    
+                    % Mean speed during turn
+                    dOut(1,7) = mean(spd(iCurr{i}));
+                    
                 end
                 % Advance index
                 j = j + 1;
@@ -80,11 +112,23 @@ switch param
                 
                 try
                     % Duration of glide prior to beat
-                    dOut(1,3) = range(D.t(iPre{i}));
+                    dOut(j,3) = range(D.t(iPre{i}));
                 catch
                     % No glide in prior beat (fish not moving?)
-                    dOut(1,3) = NaN;
+                    dOut(j,3) = NaN;
                 end
+                
+                % Average speed after turn
+                dOut(j,4) = mean(spd(iPost{i}));
+                
+                % Max angular velocity during turn
+                dOut(j,5) = max(angVel(iCurr{i}));
+                    
+                % Average angular velocity during turn
+                dOut(j,6) = mean(angVel(iCurr{i}));
+                
+                % Mean speed during turn
+                dOut(j,7) = mean(spd(iCurr{i}));
                 
                 % Advance index
                 j = j + 1;
@@ -118,12 +162,12 @@ switch param
         end
     
     case 'pred spd'
-        % Rate fo change in x and y via splines
+        % Rate of change in x and y via splines
         dXsp = fnder(D.sp.xPd);
         dYsp = fnder(D.sp.yPd);
         
-        % Resultant speed
-        dOut = sqrt(fnval(dXsp,D.t).^2 + fnval(dXsp,D.t).^2);
+        % Resultant speed (given in cm/s)
+        dOut = sqrt(fnval(dXsp,D.t).^2 + fnval(dYsp,D.t).^2);
         
         % Test against discrete calculation
         if 0, figure
@@ -132,18 +176,31 @@ switch param
         end
         
     case 'prey spd'
-        % Rate fo change in x and y via splines
+        % Rate of change in x and y via splines
         dXsp = fnder(D.sp.xPy);
         dYsp = fnder(D.sp.yPy);
         
         % Resultant speed
-        dOut = sqrt(fnval(dXsp,D.t).^2 + fnval(dXsp,D.t).^2);
+        dOut = sqrt(fnval(dXsp,D.t).^2 + fnval(dYsp,D.t).^2);
         
         % Test against discrete calculation
         if 0, figure
             spd = sqrt(diff(D.posPy(:,1)).^2 + diff(D.posPy(:,2)).^2)./diff(D.t);
             plot(D.t,dOut,'-',D.t(2:end),spd,'.')
-        end    
+        end 
+        
+    case 'ang vel'
+        % Rate of change in heading (predator) via splines
+        dAngsp = fnder(D.sp.angPd);
+        
+        % Compute values of derivative via spline
+        dOut = fnval(dAngsp,D.t);
+        
+%         % Test against discrete calculation
+%         if 0, figure
+%             spd = sqrt(diff(D.posPy(:,1)).^2 + diff(D.posPy(:,2)).^2)./diff(D.t);
+%             plot(D.t,dOut,'-',D.t(2:end),spd,'.')
+%         end
         
     case 'ang dev'  % Angular deviation between gaze and prey
         
@@ -220,20 +277,20 @@ switch param
         % Calculate unwrapped data
         dOut = give(D,'bearing');
         
-        % Loop until all values greater than pi pr less than -pi are gone
-        while true
-            
-            % Index for outside values
-            idxPos = dOut>pi;
-            idxNeg = dOut<-pi;
-            
-            if max(idxPos)==0 && max(idxNeg)==0
-                break
-            end
-            
-            dOut(idxPos) = dOut(idxPos) - 2*pi;
-            dOut(idxNeg) = 2*pi + dOut(idxNeg);
-        end
+%         % Loop until all values greater than pi or less than -pi are gone
+%         while true
+%             
+%             % Index for outside values
+%             idxPos = dOut>pi;
+%             idxNeg = dOut<-pi;
+%             
+%             if max(idxPos)==0 && max(idxNeg)==0
+%                 break
+%             end
+%             
+%             dOut(idxPos) = dOut(idxPos) - 2*pi;
+%             dOut(idxNeg) = 2*pi + dOut(idxNeg);
+%         end
         
     case 'bearing' % Bearing angle
         
@@ -243,18 +300,15 @@ switch param
         % y-coordinate of vector (Range/baseline vector) from pred Rost to prey COM
         y_R = D.posPy(:,2) - D.posPd(:,2);
         
-        % Direction of range/baseline vector
+        % Direction of range/baseline vector, inertial FOR
         alpha_R = atan2(y_R, x_R);
         
-        % Magnitude of range/baseline vector (distance between prey & pred)
-        rangeMag = sqrt(sum([x_R, y_R].^2,2));
-        
+        % Heading angle
+        heading = D.posPd(:,3);
+
         % Bearing Angle
-        %phi = unwrap(alpha_R) - unwrap(D.posPd(:,3));
-        dOut = unwrap(alpha_R) - unwrap(D.posPd(:,3));
-        
-        % Spline fit bearing angles (with heading tolerance)
-        %[sp,dOut] = spaps(D.t,phi,D.sp.tol.Head);
+        dOut = atan2(sin(alpha_R - heading), cos(alpha_R - heading));
+        % dOut = unwrap(alpha_R) - unwrap(D.posPd(:,3));
         
     case 'distPredPrey' % Distance btwn predator and prey
         
@@ -265,14 +319,11 @@ switch param
         y_R = D.posPy(:,2) - D.posPd(:,2);
         
         % Direction of range/baseline vector
-        alpha_R = atan2(y_R, x_R);
+%         alpha_R = atan2(y_R, x_R);
         
         % Magnitude of range/baseline vector (distance between prey & pred)
         %rangeMag = sqrt(sum([x_R, y_R].^2,2));
         dOut = sqrt(sum([x_R, y_R].^2,2));
-        
-        % Save distance between prey & pred
-        %[sp,dOut] = spaps(D.t,rangeMag,D.sp.tol.Head);
     
     case 'angR' % ANgular position of right eye
         
@@ -408,7 +459,7 @@ switch param
         % Turn stats
         stats = give(D,'turn stats');
         
-        % Indicies for turning tail beats that d
+        % Indicies for turning tail beats that don't overlap with prey motion
         idx = D.tBeat(:,1)==1 & ~glideOverlap(D);
         
         % Get start (of turn) times 
@@ -417,7 +468,7 @@ switch param
         % Output bearing and change in heading
         dOut = [interp1(D.t,bearing,tStart) stats(idx,1)];
 
-    case 'bearingPre moving' % bearing angle at start of turn (motionless prey)
+    case 'bearingPre moving' % bearing angle at start of turn (prey in motion)
         
         % Bearing values
         bearing  = give(D,'bearing unwrapped');
@@ -425,7 +476,7 @@ switch param
         % Turn stats
         stats = give(D,'turn stats');
         
-        % Indicies for turning tail beats that d
+        % Indices for turning tail beats that overlap with prey motion
         idx = D.tBeat(:,1)==1 & glideOverlap(D);
         
         % Get start (of turn) times 
@@ -434,7 +485,7 @@ switch param
         % Output bearing and change in heading
         dOut = [interp1(D.t,bearing,tStart) stats(idx,1)];
         
-    case 'beat duration still' % bearing angle at start of turn (motionless prey)
+    case 'beat duration still' % beat duration, motionless prey
                
         % Turn stats
         stats = give(D,'turn stats');
@@ -445,12 +496,12 @@ switch param
         % Get duration of glides
         dOut = stats(idx,3);       
         
-    case 'beat duration moving' % bearing angle at start of turn (motionless prey)
+    case 'beat duration moving' % beat duration, moving prey
                
         % Turn stats
         stats = give(D,'turn stats');
         
-        % Indicies for turning tail beats that don't have motion during glide
+        % Indicies for turning tail beats that have motion during glide
         idx = D.tBeat(:,1)==1 & glideOverlap(D);
         
         % Get duration of glides
@@ -512,6 +563,158 @@ switch param
         
     case 'distPost' % Distance between predator and prey at end of turn (cm)
         dOut        = fnval(D.sp.distPredPrey,D.tInt(:,2)) .* D.p.cF;
+        
+    case 'maxBend'  % maximum bend parameter during turn
+        
+        % Step thru turns
+        for i = 1:length(beat_type)
+            % Get max bend during current turn
+            dOut(i,1) = max(D.bend(iCurr{i}));
+        end
+            
+        % Get turns only (discard flicks)
+%         dOut = dOut(logical(beat_type));
+            
+    case 'turnsOnly'    % indices for large turns (no flicks)  
+        % Gather beat type
+        dOut = beat_type;
+        
+    case 'bodyLength'
+        
+        bodyL = zeros(length(beat_type),1);
+        
+        % Compute body length during each coasting phase (cm)
+        % Step thru all beats
+        for i = 1:length(beat_type)
+            if isfield(D,'bodyL')
+                bodyL(i) = mean(D.bodyL(iPost{i}));
+            else
+                disp('Where is bodyL?')
+                pause
+                bodyL(i) = 1.2;
+            end
+        end
+        
+        % Get turns indices (careful using 'logical', nonzero values = 1
+        % (true)
+        turnsIdx = logical(beat_type);
+        
+        % Get linear index of turning tail beats
+        idxVal = find(turnsIdx>0);
+       
+        % Body length (cm): repeat mean value for every turn in sequence
+        dOut = mean(bodyL(turnsIdx)) * ones(length(idxVal),1);
+        
+    case 'turn radius'
+        
+        % Get translational speed
+        spd = give(D,'pred spd');
+        
+        % Get angular velocity
+        angVel = give(D,'ang vel');
+        
+        % Get turns indices (careful using 'logical', nonzero values = 1
+        % (true)
+        turnsIdx = logical(beat_type);
+        
+        % Get linear index of turning tail beats
+        idxVal = find(turnsIdx>0);
+        
+        % Preallocate output vector
+        tRad = zeros(length(idxVal),1);
+        
+       for k=1:length(idxVal)
+           
+           % Linear index of current turn
+           idx_curr = idxVal(k);
+           
+           % Max angular velocity of current turn and its index
+           [omega_val,omega_idx] = max((abs(angVel(iCurr{idx_curr}))));
+           
+           % Current speed
+           speed_curr = spd(iCurr{idx_curr});
+           
+           % Get speed at same time point as max ang. velocity
+           speed = speed_curr(omega_idx);
+           
+           % Compute turning radius
+           tRad(k,1) = speed ./ omega_val;
+       end
+       
+        % Output turning radius (cm)
+        dOut = tRad;
+        
+    case 'angVel control'
+        % Use this to explore how angular velocity correlates to bearing angle
+        
+        % Get angular velocity
+        angVel = give(D,'ang vel');
+        
+        % Turn stats
+        stats = give(D,'turn stats');
+        
+        % Indices for turning tail beats (logical index)
+        idx = D.tBeat(:,1)==1;
+        
+        % Get mid turn times (mean value of turn start and end times)
+        tMid = 0.5*(D.tBeat(idx,3) + D.tBeat(idx,2));
+        
+        % Time at beginning of turn
+        tStart = D.tBeat(idx,2);
+        
+        % Get angular velocity at mid turn
+        angVel_mid = interp1(D.t,angVel,tMid);
+        
+        % Get max and average speeds during turn
+        maxSpd = stats(idx,2);
+        avgSpd = stats(idx,7);
+        heading = stats(idx,1);
+        
+        % Output data
+        dOut = [angVel_mid, heading, avgSpd, tMid, tStart];
+        
+    case 'bearing Pre'
+        % Bearing values
+        bearing  = give(D,'bearing unwrapped');
+        
+        % Indices for turning tail beats (logical index)
+        idx = D.tBeat(:,1)==1;
+        
+        % Get linear index of turning tail beats
+        idxVal = find(idx>0);
+        
+        % Preallocate output cells
+        bearPre = cell(length(idxVal),1);
+        tPre    = cell(length(idxVal),1);
+        
+        for k = 1:length(idxVal);
+            
+            % Previous interval indices
+            idxPre = iPre{idxVal(k)};
+            
+            % Get bearing angle values of previous interval & time points
+            bearPre{k} = bearing(idxPre);
+            tPre{k} = D.t(idxPre);
+        end
+        
+        % Concatnate output cells
+        dOut = [bearPre, tPre];
+        
+    case 'undershoot' % bearing angle at start of turn (motionless prey)
+        
+        % Bearing values
+        bearing  = give(D,'bearing unwrapped');
+        
+        % Indicies for turning tail beats that don't overlap with prey motion
+        idx = D.tBeat(:,1)==1;
+        
+        % Get start (of turn) times
+        tStart = D.tBeat(idx,2);
+        
+        tEnd = D.tBeat(idx,3);
+        
+        % Output bearing and change in heading
+        dOut = [interp1(D.t,bearing,tStart) interp1(D.t,bearing,tEnd)];
         
     otherwise
         error('Parameter requested not recognized');
@@ -586,3 +789,15 @@ for i = 1:size(D.tBeat,1)
     % Start time for next glide
     tStart = D.tBeat(i,3);
 end
+
+% for k=1:7, 
+%     figure(k),
+%     x1 = spont_turnData(:,k);
+%     x2 = targ_turnData(:,k);
+%     boxplot([x1;x2],[g1;g2],'Labels',{'Spontaneous','Targeted'}),
+%     if kstest2(x1,x2)
+%         title('Distributions differ')
+%     else
+%         title('Distributions do not differ')
+%     end
+% end

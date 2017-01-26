@@ -2,21 +2,21 @@ function acqMaster(batchName,seqName)
 % Manages the workflow for the acquisition of kinematics
 
 if nargin < 2
-    batchName   = '2016-08-25';
-    seqName     = 'S02';
+    batchName   = '2016-02-24';
+    seqName     = 'S01';
 end
 
 
 %% Parameter values
 
 % indicator to redo midline tracking
-redoMidline = 0;
+redoMidline = 1;
 
 % indicator for reanalyzing prey
 redoPrey = 0;
 
 % indicator for reanalyzing eyes 
-redoEyes = 0;
+redoEyes = 1;
 
 % indicator for getting eye angles 
 getEye = 0;
@@ -25,7 +25,7 @@ getEye = 0;
 newMean = 1;
 
 % frame to begin analysis (useful for debugging)
-startFrame = 1;
+startFrame = 250;
 
 % Include calibration
 includeCalibration = 0;
@@ -46,7 +46,7 @@ p.numVis = 50;
 p.max_frames = 100;
 
 % Frame rate (fps)
-p.framerate = 500;
+p.framerate = 250;
 
 % Frames to skip initially in analysis
 %p.skipFrame_start = 5;

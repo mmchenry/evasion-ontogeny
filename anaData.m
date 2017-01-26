@@ -37,7 +37,7 @@ D.p.min_durPy = 0.15;
 D.p.yawDelta = 10*pi/180;
 
 % High threshold change in speed for a prey (?/s)
-D.p.highSpdPy = 1;
+D.p.highSpdPy = 0.75;
 
 % Low threshold change in speed for a prey (?/s)
 D.p.lowSpdPy = 0.5;
@@ -50,10 +50,37 @@ D.p.fov = 186*pi/180;
 
 % Conversion factor to convert from pixels to cm.
 if str2num(batchName(1:4))==2016
-    if str2num(batchName(6:7))>3
-        D.p.cF = 0.0050;        % for experiments after 03-23-16
-    else
-        D.p.cF = 0.0064;        % for experiments before 3-23-16
+    switch batchName(6:7)
+        case {'02','03'}
+            D.p.cF = 0.0064;        % for experiments before 03-23-16
+            
+            if strcmp(batchName,'2016-03-23')
+                D.p.cF = 0.005;        % for experiments on 03-23-16
+            end
+            
+        case {'04','06'}
+            D.p.cF = 0.0050;        % for experiments in April 2016
+            
+        case {'08'}
+            D.p.cF = 0.0065;        % for experiments in August 2016
+            
+        case {'09','10'}
+            D.p.cF = 0.00763;       % for experiments in Sept. 2016
+            
+            if strcmp(batchName,'2016-09-08')
+                D.p.cF = 0.00625;       % for experiments on 09-08-16
+            end
+            
+%     if str2num(batchName(6:7))>3
+%         D.p.cF = 0.0050;        % for experiments after 03-23-16
+%     elseif str2num(batchName(6:7))>7
+%         D.p.cF = 0.0065;        % for experiments after 06-17-16
+%     elseif str2num(batchName(6:7))>9
+%         D.p.cF = 0.00763;       % for experiments after 09-12-16
+%     elseif strcmp(batchName,'2016-09-08')
+%         D.p.cF = 0.00625;       % for experiments on 09-08-16
+%     else
+%         D.p.cF = 0.0064;        % for experiments before 03-23-16
     end
 else
     error('This calibration code assumes all experiments run in 2016');
@@ -73,10 +100,10 @@ indxEyes = find(isfinite(eyes.xReye));
 % limited by Prey data; choose pred data to coincide with Prey
 
 % indices for first digitized frame in common
-ind1 = max([indxPrey(1) indxPred(1) indxEyes(1)]);
+ind1 = max([indxPrey(1) indxPred(1)]);% indxEyes(1)]);
 
 % index for last frame in common
-ind2 = min([indxPrey(end),indxPred(end),indxEyes(end)]);
+ind2 = min([indxPrey(end),indxPred(end)]);%,indxEyes(end)]);
 
 % Store frame numbers
 sp.frStart = max(1,ind1);
@@ -87,7 +114,7 @@ fNames = fieldnames(prey);
 
 % Extract prey data range specified by start & end frames
 % Begin with 3rd variable, first two are scalars
-for j=3:numel(fNames)
+for j=3:8
     prey.(fNames{j}) = prey.(fNames{j})(sp.frStart:sp.frEnd,:);
 end
 
@@ -131,6 +158,9 @@ D.t    = eyes.t;
 % Calculate tail bending index
 mid.bend = findBending(D,mid);
 
+% Calculate midline arclength and store in 'D' (cm)
+D.bodyL = findLength(mid) * D.p.cF;
+
 clear indexPrey indxPred ind1 ind2 indxPrey indxPred indxEyes fNames j 
 
 
@@ -144,13 +174,43 @@ data.Head  = unwrap(eyes.hdAngle);
 data.Reye  = eyes.rAngle;
 data.Leye  = eyes.lAngle;
 data.prey_ang = unwrap(prey.thetaPrey/180*pi);
+
+% Data structure continued (all length units: cm)
 data.Prey  = prey.xPrey.*D.p.cF;
 data.Pred  = mid.xRost.*D.p.cF;
 data.xReye = eyes.xReye.*D.p.cF;
 data.bend  = mid.bend;
 
 % Non-interactive method for finding tolerance
-D.sp = findSplineTols(D,sp,varNames,data);
+try
+    D.sp = findSplineTols(D,sp,varNames,data);
+    
+    % Turn OFF inidicator for ignoring eye data
+    spEye = 0;
+catch
+    % Eye data not complete for some sequences, but may not be relevant 
+    % This can happen for sequences where eye or prey codes don't work 
+    
+    % Display warning
+    disp('Eye and/or Prey data may be incomplete...')
+    
+    % Turn ON inidicator for ignoring eye data
+    spEye = 1;
+    
+    % Tolerance parameter names needed (ignoring eye data)
+    varNames    = {'Head','Prey','Pred','Bend'};
+    
+    % Remove nonessential fields from data structure
+    data = rmfield(data,{'Reye','Leye','prey_ang','xReye'});
+    
+    % Find tolerance parameters on subset of all variables
+    D.sp        = findSplineTols(D,sp,varNames,data);
+    
+    % Set tolerance parameters for other variables (arbitrary)  
+    D.sp.tol.prey_ang   = D.sp.tol.Prey;
+    D.sp.tol.Eyes       = D.sp.tol.Pred; 
+    D.sp.tol.Reye       = D.sp.tol.Pred; 
+end
 
 clear sp data varNames
 
@@ -162,9 +222,16 @@ warning off
 
 % Spline fit prey position
 D.sp.xPy    = spaps(D.t,prey.xPrey.*D.p.cF,D.sp.tol.Prey);  
-D.sp.yPy    = spaps(D.t,(D.p.vid_height-prey.yPrey).*D.p.cF,D.sp.tol.Prey);  
-D.sp.angPy  = spaps(D.t,unwrap(prey.thetaPrey/180*pi),D.sp.tol.prey_ang);  
+D.sp.yPy    = spaps(D.t,(D.p.vid_height-prey.yPrey).*D.p.cF,D.sp.tol.Prey);
+
+% Split prey heading angle if data is complete
+if ~spEye
+    D.sp.angPy  = spaps(D.t,unwrap(prey.thetaPrey/180*pi),D.sp.tol.prey_ang);
 D.posPy     = [fnval(D.sp.xPy,D.t) fnval(D.sp.yPy,D.t) fnval(D.sp.angPy,D.t)];
+else
+    D.posPy = [fnval(D.sp.xPy,D.t) fnval(D.sp.yPy,D.t)];
+end
+
 
 % Spline fit predator rostrum position & orientation
 D.sp.xPd    = spaps(D.t,mid.xRost.*D.p.cF,D.sp.tol.Pred);  
@@ -177,6 +244,7 @@ D.posPd     = [fnval(D.sp.xPd,D.t) fnval(D.sp.yPd,D.t) fnval(D.sp.angPd,D.t)];
 D.bend = D.bend';
 
 % Spline fit eye positions
+try
 D.sp.xReye    = spaps(eyes.t,eyes.xReye.*D.p.cF,D.sp.tol.Eyes);
 D.sp.yReye    = spaps(eyes.t,(D.p.vid_height-eyes.yReye).*D.p.cF,D.sp.tol.Eyes);
 D.sp.xLeye    = spaps(eyes.t,eyes.xLeye.*D.p.cF,D.sp.tol.Eyes);
@@ -190,27 +258,41 @@ D.sp.angL   = spaps(D.t,eyes.lAngle,D.sp.tol.Reye);
 D.posR = [fnval(D.sp.xReye,D.t) fnval(D.sp.yReye,D.t) fnval(D.sp.angR,D.t)];
 D.posL = [fnval(D.sp.xLeye,D.t) fnval(D.sp.yLeye,D.t) fnval(D.sp.angL,D.t)];
 
+catch 
+% NOTE: Figure out what to do with eye/prey data that is incomplete
+% Quick and dirty fix: make all subfields empty
+    if spEye
+        D.sp.xReye = [];
+        D.sp.yReye = [];
+        D.sp.xLeye = [];
+        D.sp.yLeye = [];
+        D.sp.angR  = [];
+        D.sp.angL  = [];
+        D.posR     = [];
+        D.posL     = [];
+    end
+end
+
 warning on
 
 % Prey diameter if assumed a sphere: weighted average of long and short axes
-D.lenPy = (0.30*mean(prey.MajorAxis)*D.p.cF + 0.70*mean(prey.MinorAxis))*D.p.cF/2;
+D.lenPy = (0.30*mean(prey.MajorAxis)*D.p.cF + 0.70*mean(prey.MinorAxis))*D.p.cF;
 
 % Check accurary of spline fits
 if vis
     % Plot x-position
     subplot(5,1,1);
-    plot(mid.t,mid.xRost,'r.',D.t,D.posPd(:,1),'k-')
+    plot(mid.t,mid.xRost*D.p.cF,'r.',D.t,D.posPd(:,1),'k-')
     grid on
     ylabel('xRost')
     title('Spline fits')
     
-    % Plot heading angle
+    % Plot heading angle (unwrapped heading)
     subplot(5,1,2);
-    plot(mid.t,eyes.hdAngle,'r.',D.t,D.posPd(:,3),'k-')
+    plot(mid.t,unwrap(eyes.hdAngle),'r.',D.t,D.posPd(:,3),'k-')
     grid on 
     ylabel('Head angle (rad)')
-    
-    
+
     % Plot eye angle
     subplot(5,1,3);
     plot(mid.t,eyes.rAngle,'r.',D.t,D.posR(:,3),'k-')
@@ -223,14 +305,14 @@ if vis
     grid on 
     ylabel('Bending index')
     
-    % Plot bending
+    % Plot prey position
     subplot(5,1,5);
-    plot(prey.t,prey.xPrey,'r.',D.t,D.posPy(:,1),'k-')
+    plot(prey.t,prey.xPrey*D.p.cF,'r.',D.t,D.posPy(:,1),'k-')
     grid on 
     ylabel('Prey x-position')
    
     %beep
-    pause
+%     pause
 end
 
 % Clear rawdata variables
@@ -239,40 +321,43 @@ clear eyes mid prey posTail
 
 %% Define the prey in the predator's FOR
 
-for i = 1:length(D.t)
+if ~spEye
     
-    % Local coord system, Both eyes
-    D.tformR{i} = local_system_R(D.posR(i,1:2),D.posL(i,1:2));
-    D.tformL{i} = local_system_L(D.posR(i,1:2),D.posL(i,1:2));
-    
-    % Position of prey in the eye FORs
-    [xPyR,yPyR] = global_to_local(D.tformR{i},D.posPy(i,1),D.posPy(i,2));
-    [xPyL,yPyL] = global_to_local(D.tformL{i},D.posPy(i,1),D.posPy(i,2));
-    
-    angR = atan2(yPyR,xPyR);
-    angL = atan2(yPyL,xPyL);
-    
-    D.posPyR(i,:) =  [xPyR yPyR angR];
-    D.posPyL(i,:) =  [xPyL yPyL angL];
-    
-    % Visual check on transformation
-   if 0
-      subplot(2,2,[1 3])
-      plot([D.posR(i,1),D.posL(i,1)],[D.posR(i,2),D.posL(i,2)],'k-o',...
-          D.posPy(i,1),D.posPy(i,2),'ro',D.posR(i,1),D.posR(i,2),'k*')
-      axis equal;grid on
-      title('Intertial FOR')
-      
-      subplot(2,2,2)
-      plot(0,0,'k*',D.posPyR(i,1),D.posPyR(i,2),'ro')
-      title('Right eye')
-      axis equal;grid on
-      
-      subplot(2,2,4)
-      plot(0,0,'ko',D.posPyL(i,1),D.posPyL(i,2),'ro')
-      title('Left eye')
-      axis equal; grid on
-   end
+    for i = 1:length(D.t)
+        
+        % Local coord system, Both eyes
+        D.tformR{i} = local_system_R(D.posR(i,1:2),D.posL(i,1:2));
+        D.tformL{i} = local_system_L(D.posR(i,1:2),D.posL(i,1:2));
+        
+        % Position of prey in the eye FORs
+        [xPyR,yPyR] = global_to_local(D.tformR{i},D.posPy(i,1),D.posPy(i,2));
+        [xPyL,yPyL] = global_to_local(D.tformL{i},D.posPy(i,1),D.posPy(i,2));
+        
+        angR = atan2(yPyR,xPyR);
+        angL = atan2(yPyL,xPyL);
+        
+        D.posPyR(i,:) =  [xPyR yPyR angR];
+        D.posPyL(i,:) =  [xPyL yPyL angL];
+        
+        % Visual check on transformation
+        if 0
+            subplot(2,2,[1 3])
+            plot([D.posR(i,1),D.posL(i,1)],[D.posR(i,2),D.posL(i,2)],'k-o',...
+                D.posPy(i,1),D.posPy(i,2),'ro',D.posR(i,1),D.posR(i,2),'k*')
+            axis equal;grid on
+            title('Intertial FOR')
+            
+            subplot(2,2,2)
+            plot(0,0,'k*',D.posPyR(i,1),D.posPyR(i,2),'ro')
+            title('Right eye')
+            axis equal;grid on
+            
+            subplot(2,2,4)
+            plot(0,0,'ko',D.posPyL(i,1),D.posPyL(i,2),'ro')
+            title('Left eye')
+            axis equal; grid on
+        end
+    end
 end
 
 
@@ -287,7 +372,9 @@ D = find_prey_intervals(D);
 
 % Visualize results
 if 0
-    vis_beats(D,'prey')    
+    vis_beats(D,'prey')
+    
+    vis_beats(D,'pred')
 end
 
 
@@ -299,6 +386,7 @@ function sp = findSplineTols(D,sp,varNames,data)
 
 % Get data fieldnames
 dataNames = fieldnames(data);
+
 
 % Loop thru each variable
 for j = 1:length(varNames)
@@ -407,33 +495,77 @@ if ~isfield(mid,'sMid')
     bend = zeros(length(mid.t),1);
     
 else
+    % Initialize bend parameter vector
+    bend = zeros(length(mid.t),1);
+    
     % Loop thru midline points
     for i = 1:length(mid.sMid)
         
         % Check for empty midline data
         if isempty(mid.sMid{i})
-            bend = zeros(length(mid.t),1);
-            break
+            try
+                bend(i,1) = mean(bend(i-4:i-1,1));
+            catch
+                bend(i,1) = 0;
+            end
+        else
+            
+            % Extract
+            s = mid.sMid{i}./mid.sMid{i}(end);
+            x = mid.xMid{i}./mid.sMid{i}(end);
+            y = mid.yMid{i}./mid.sMid{i}(end);
+            
+            cX = polyfit(s,x,1);
+            cY = polyfit(s,y,1);
+            
+            bend(i,1) = sum(sqrt((x-polyval(cX,s)).^2 + (y-polyval(cY,s)).^2));
         end
-        
-        % Extract
-        s = mid.sMid{i}./mid.sMid{i}(end);
-        x = mid.xMid{i}./mid.sMid{i}(end);
-        y = mid.yMid{i}./mid.sMid{i}(end);
-        
-        cX = polyfit(s,x,1);
-        cY = polyfit(s,y,1);
-        
-        bend(i,1) = sum(sqrt((x-polyval(cX,s)).^2 + (y-polyval(cY,s)).^2));
-        
-        if 0
-            plot(x,y,'k-',polyval(cX,s),polyval(cY,s),'-r')
-            title(['t = ' num2str(D.t(i)) ': bend = ' num2str(bend(i))])
-            pause(0.3)
-        end
+            if 0
+                plot(x,y,'k-',polyval(cX,s),polyval(cY,s),'-r')
+                title(['t = ' num2str(D.t(i)) ': bend = ' num2str(bend(i))])
+                pause(0.3)
+            end
     end
-    
 end
+
+function bodyL = findLength(mid)
+% Computes length of midline segments, to be used for computing fish length
+
+% If no midline data . . .
+if ~isfield(mid,'sMid')
+    bodyL = zeros(length(mid.t),1);
+    disp('   No midline data, cannot compute body length!')
+    
+else
+    % Initialize body length vector
+    bodyL = zeros(length(mid.t),1);
+    
+    % Loop thru midline points
+    for i = 1:length(mid.sMid)
+        
+        % Check for empty midline data
+        if isempty(mid.sMid{i})
+            try
+                bodyL(i,1) = mean(bodyL(i-4:i-1,1));
+            catch
+                bodyL(i,1) = 0;
+            end
+        else
+            
+            % Extract arc-length data
+            bodyL(i,1) = mid.sMid{i}(end);
+            
+            % Sum up the arc length values for current frame
+%             bodyL(i,1) = sum(s);
+        end
+%             if 0
+%                 plot(x,y,'k-',polyval(cX,s),polyval(cY,s),'-r')
+%                 title(['t = ' num2str(D.t(i)) ': bend = ' num2str(bend(i))])
+%                 pause(0.3)
+%             end
+    end
+end
+    
 
 
 function D = find_prey_intervals(D)
@@ -452,6 +584,11 @@ tHd = unique(tHd(1,:)');
 
 % Time of scoots above threshold spd (candidate)
 tBig = tHd(fnval(sp,tHd)>D.p.highSpdPy);
+
+% Check that tBig is nonempty
+if isempty(tBig)
+    disp('tBig is empty...')
+end
 
 % Time of change in spd below threshold
 tSmall = tHd(fnval(sp,tHd)<D.p.lowSpdPy);
@@ -530,6 +667,12 @@ tPeak = unique(tPeak(1,:)');
 % Time of big tail beats (candidate)
 tBig = tPeak(abs(fnval(Dsp,tPeak))>D.p.yawRate_high);
 
+% Check that tBig is nonempty
+if isempty(tBig)
+    % tBig is empty, use a smaller threshold value
+    disp('tBig is empty...')
+    tBig = tPeak(abs(fnval(Dsp,tPeak))>1.5);
+end
 
 % Start of changes in angular direction before peak
 tPrior = tHd(tHd<tBig(1));
@@ -717,7 +860,7 @@ addbeats(D,'pred')
 
 subplot(5,1,4) %--------------------------
 plot(D.t,spd,'-');
-ylabel('spd (?/s)')
+ylabel('spd (cm/s)')
 grid on;yL=ylim;hold on;
 
 addbeats(D,'prey')

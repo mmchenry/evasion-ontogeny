@@ -40,12 +40,12 @@ if size(X,2)==1
     L2      = b + t_s;
     
     %Now, find RMA stats:
-    v       = ( sum(y.^2) / sum(x.^2) ) .^.5;
+    v       = ( (sum(y.^2)./(n-1)) / (sum(x.^2)./(n-1)) ) .^.5;
     %note: the stat v normally cannot find the sign of the slope,
     
     %so we use the least squares regression to find the sign:
     c       = corrcoef(X,Y);
-    slope   = (c(2)/abs(c(2))) * v;
+    slope   = c(2) * v; %slope   = (c(2)/abs(c(2))) * v;
     a_v     = mean(Y) - slope * mean(X);
     s_v     = s_b;
     
@@ -68,7 +68,7 @@ if size(X,2)==1
     stats.lowerLimit_a  = aL1;
     stats.upperLimit_a  = aL2;
     stats.alpha         = alpha;
-    stats.r2            = rSquared(x,y,slope,a_v);
+    stats.r2            = rSquared(X,Y,slope,a_v);
     
     
     if (b_predicted<L2) & (b_predicted>L1)
@@ -107,12 +107,12 @@ end
 
 
 function r2 = rSquared(x,y,slope,intercept)
-%Gives r2 for a linear regression
+% Gives r2 for a linear regression
 
 yPred   = slope.*x + intercept;
 yMean   = mean(y);
 
-sPred       = sum( (yPred - yMean).^2 );
-sTotal      = sPred + sum( (y - yPred).^2 );
+regSS      = sum( (yPred - yMean).^2 );
+totSS      = sum( (y - yMean).^2 );
 
-r2 = sPred/sTotal;
+r2 = regSS/totSS;
